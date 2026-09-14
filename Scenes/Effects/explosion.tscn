@@ -1,0 +1,88 @@
+[gd_scene format=3 uid="uid://dxg1kgamplbj4"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/explosion.gd" id="1_explosion"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fireburst"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 4.0
+initial_velocity_max = 8.0
+angular_velocity_min = -6.0
+angular_velocity_max = 6.0
+gravity = Vector3(0, -9, 0)
+scale_min = 0.5
+scale_max = 1.5
+color = Color(1, 0.5, 0, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fireburst"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(1, 0.6, 0.2, 0.85)
+emission_enabled = true
+emission = Color(1, 0.4, 0, 1)
+emission_energy_multiplier = 2.5
+
+[sub_resource type="SphereMesh" id="SphereMesh_fireburst"]
+material = SubResource("StandardMaterial3D_fireburst")
+radius = 0.2
+height = 0.4
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
+emission_shape = 1
+emission_sphere_radius = 0.4
+direction = Vector3(0, 1, 0)
+spread = 45.0
+initial_velocity_min = 1.0
+initial_velocity_max = 3.0
+angular_velocity_min = -2.0
+angular_velocity_max = 2.0
+gravity = Vector3(0, -1, 0)
+scale_min = 0.8
+scale_max = 2.0
+color = Color(0.25, 0.22, 0.2, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(0.25, 0.22, 0.2, 0.6)
+
+[sub_resource type="SphereMesh" id="SphereMesh_smoke"]
+material = SubResource("StandardMaterial3D_smoke")
+radius = 0.35
+height = 0.7
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_explosion"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[node name="Explosion" type="Node3D"]
+script = ExtResource("1_explosion")
+
+[node name="FireBurst" type="GPUParticles3D" parent="."]
+process_material = SubResource("ParticleProcessMaterial_fireburst")
+draw_pass_1 = SubResource("SphereMesh_fireburst")
+emitting = false
+one_shot = true
+explosiveness = 1.0
+amount = 60
+lifetime = 0.8
+speed_scale = 1.5
+
+[node name="Smoke" type="GPUParticles3D" parent="."]
+process_material = SubResource("ParticleProcessMaterial_smoke")
+draw_pass_1 = SubResource("SphereMesh_smoke")
+emitting = false
+one_shot = true
+explosiveness = 0.6
+amount = 40
+lifetime = 2.5
+speed_scale = 1.0
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_explosion")

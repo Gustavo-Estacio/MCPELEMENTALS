@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Entities/wind_torrent.gd" id="1_wind_torrent"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_torrent"]
+emission_shape = 1
+emission_sphere_radius = 1.2
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 2.0
+initial_velocity_max = 5.0
+orbit_velocity_min = 0.6
+orbit_velocity_max = 1.2
+gravity = Vector3(0, 0, 0)
+scale_min = 0.3
+scale_max = 0.7
+color = Color(0.85, 0.93, 1, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_torrent"]
+transparency = 1
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.85, 0.93, 1, 0.5)
+emission_enabled = true
+emission = Color(0.85, 0.93, 1, 1)
+emission_energy_multiplier = 1.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_torrent"]
+material = SubResource("StandardMaterial3D_torrent")
+radius = 0.15
+height = 0.3
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_root"]
+radius = 0.3
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_torrent"]
+radius = 2.2
+height = 4.5
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_torrent"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:linear_velocity")
+properties/1/spawn = false
+properties/1/replication_mode = 1
+
+[node name="WindTorrent" type="RigidBody3D"]
+collision_layer = 0
+collision_mask = 0
+gravity_scale = 0.0
+script = ExtResource("1_wind_torrent")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_root")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+process_material = SubResource("ParticleProcessMaterial_torrent")
+draw_pass_1 = SubResource("SphereMesh_torrent")
+amount = 100
+lifetime = 1.0
+speed_scale = 1.5
+
+[node name="Area3D" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+collision_layer = 4
+collision_mask = 13
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("CylinderShape3D_torrent")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_torrent")

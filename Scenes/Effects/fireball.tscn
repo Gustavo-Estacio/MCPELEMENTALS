@@ -1,0 +1,94 @@
+[gd_scene format=3 uid="uid://b5f2hddxtfdaw"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/fireball.gd" id="1_fireball"]
+[ext_resource type="Texture2D" path="res://addons/kenney_prototype_textures/red/texture_11.png" id="2_red"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_fire"]
+radius = 0.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fire"]
+albedo_color = Color(1, 0.5, 0, 1)
+albedo_texture = ExtResource("2_red")
+emission_enabled = true
+emission = Color(1, 0.4, 0, 1)
+emission_energy_multiplier = 2.0
+uv1_scale = Vector3(3.0, 3.0, 3.0)
+
+[sub_resource type="SphereMesh" id="SphereMesh_fire"]
+material = SubResource("StandardMaterial3D_fire")
+radius = 0.6
+height = 1.2
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_fire"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:linear_velocity")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_detect_fire"]
+radius = 1.2
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fire"]
+emission_shape = 1
+emission_sphere_radius = 0.6
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 1.0
+initial_velocity_max = 3.0
+angular_velocity_min = -4.0
+angular_velocity_max = 4.0
+gravity = Vector3(0, -5, 0)
+scale_min = 0.2
+scale_max = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_particle"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(1, 0.5, 0, 0.7)
+emission_enabled = true
+emission = Color(1, 0.3, 0, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="SphereMesh" id="SphereMesh_particle"]
+material = SubResource("StandardMaterial3D_particle")
+radius = 0.1
+height = 0.2
+
+[node name="FireBall" type="RigidBody3D" unique_id=44851472]
+collision_layer = 0
+collision_mask = 1
+mass = 1.5
+script = ExtResource("1_fireball")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1254127666]
+shape = SubResource("SphereShape3D_fire")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492416365]
+mesh = SubResource("SphereMesh_fire")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1254127667]
+omni_range = 8.0
+omni_attenuation = 2.0
+energy = 1.5
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="." unique_id=492416366]
+process_material = SubResource("ParticleProcessMaterial_fire")
+draw_pass_1 = SubResource("SphereMesh_particle")
+amount = 100
+lifetime = 1.5
+speed_scale = 1.5
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1087351016]
+replication_config = SubResource("SceneReplicationConfig_fire")
+
+[node name="Area3D" type="Area3D" parent="." unique_id=2112037758]
+collision_layer = 4
+collision_mask = 13
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D" unique_id=400291548]
+shape = SubResource("SphereShape3D_detect_fire")

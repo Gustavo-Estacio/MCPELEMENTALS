@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://cwawwkfln8cac"]
+
+[ext_resource type="Script" uid="uid://b85f8ognhs33l" path="res://Scripts/Entities/earth_spike.gd" id="1_spike"]
+[ext_resource type="Texture2D" uid="uid://ytim4n1ldt3f" path="res://addons/kenney_prototype_textures/dark/texture_11.png" id="2_spike_tex"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spike"]
+albedo_texture = ExtResource("2_spike_tex")
+uv1_scale = Vector3(2, 2, 2)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_spike"]
+material = SubResource("StandardMaterial3D_spike")
+top_radius = 0.0
+bottom_radius = 0.35
+height = 1.8
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_spike"]
+height = 1.8
+radius = 0.3
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_spike"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = false
+properties/1/replication_mode = 1
+
+[node name="EarthSpike" type="Area3D" unique_id=1689979257]
+collision_layer = 4
+collision_mask = 15
+script = ExtResource("1_spike")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=193609351]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CylinderMesh_spike")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=251442851]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CylinderShape3D_spike")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=2007384328]
+replication_config = SubResource("SceneReplicationConfig_spike")

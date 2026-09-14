@@ -1,0 +1,79 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Entities/tornado.gd" id="1_tornado"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_tornado"]
+emission_shape = 1
+emission_sphere_radius = 0.8
+direction = Vector3(0, 1, 0)
+spread = 20.0
+initial_velocity_min = 1.0
+initial_velocity_max = 2.5
+orbit_velocity_min = 1.2
+orbit_velocity_max = 2.0
+gravity = Vector3(0, -0.5, 0)
+scale_min = 0.3
+scale_max = 0.8
+color = Color(0.8, 0.85, 0.9, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tornado"]
+transparency = 1
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.8, 0.85, 0.9, 0.5)
+
+[sub_resource type="SphereMesh" id="SphereMesh_tornado"]
+material = SubResource("StandardMaterial3D_tornado")
+radius = 0.25
+height = 0.5
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_tornado"]
+radius = 1.2
+height = 3.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cone"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+albedo_color = Color(0.75, 0.8, 0.85, 0.35)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cone"]
+material = SubResource("StandardMaterial3D_cone")
+top_radius = 1.4
+bottom_radius = 0.2
+height = 3.5
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_tornado"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = false
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = false
+properties/1/replication_mode = 1
+properties/2/path = NodePath("Cone:scale")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+
+[node name="Tornado" type="Area3D"]
+collision_layer = 4
+collision_mask = 15
+script = ExtResource("1_tornado")
+
+[node name="Cone" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 1.75, 0)
+mesh = SubResource("CylinderMesh_cone")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+process_material = SubResource("ParticleProcessMaterial_tornado")
+draw_pass_1 = SubResource("SphereMesh_tornado")
+amount = 80
+lifetime = 1.2
+speed_scale = 1.5
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("CylinderShape3D_tornado")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_tornado")

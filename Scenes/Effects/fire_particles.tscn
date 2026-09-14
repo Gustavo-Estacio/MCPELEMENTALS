@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://b5f2hddxtfdax"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fire"]
+emission_shape = 1
+emission_sphere_radius = 0.4
+direction = Vector3(0, 1, 0)
+spread = 90.0
+initial_velocity_min = 3.0
+initial_velocity_max = 6.0
+angular_velocity_min = -6.0
+angular_velocity_max = 6.0
+gravity = Vector3(0, -8, 0)
+scale_min = 0.4
+scale_max = 1.4
+color = Color(1, 0.5, 0, 1)
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_fire_particles"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_particle_fire"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(1, 0.6, 0.2, 0.8)
+emission_enabled = true
+emission = Color(1, 0.4, 0, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_particle_fire"]
+material = SubResource("StandardMaterial3D_particle_fire")
+radius = 0.15
+height = 0.3
+
+[node name="FireParticles" type="GPUParticles3D"]
+process_material = SubResource("ParticleProcessMaterial_fire")
+draw_pass_1 = SubResource("SphereMesh_particle_fire")
+amount = 50
+lifetime = 2.0
+speed_scale = 1.8
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_fire_particles")

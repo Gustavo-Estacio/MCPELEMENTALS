@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_wind"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 0, 1)
+spread = 60.0
+initial_velocity_min = 3.0
+initial_velocity_max = 6.0
+angular_velocity_min = -4.0
+angular_velocity_max = 4.0
+gravity = Vector3(0, 0, 0)
+scale_min = 0.2
+scale_max = 0.5
+color = Color(0.9, 0.97, 1, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wind"]
+transparency = 1
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.9, 0.97, 1, 0.5)
+emission_enabled = true
+emission = Color(0.9, 0.97, 1, 1)
+emission_energy_multiplier = 1.2
+
+[sub_resource type="SphereMesh" id="SphereMesh_wind"]
+material = SubResource("StandardMaterial3D_wind")
+radius = 0.1
+height = 0.2
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_wind"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[node name="WindParticles" type="GPUParticles3D"]
+process_material = SubResource("ParticleProcessMaterial_wind")
+draw_pass_1 = SubResource("SphereMesh_wind")
+amount = 40
+lifetime = 0.8
+speed_scale = 1.5
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_wind")

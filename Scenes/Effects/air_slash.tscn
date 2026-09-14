@@ -1,0 +1,55 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Entities/air_projectile.gd" id="1_slash"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slash"]
+shading_mode = 0
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0.9, 0.97, 1, 0.8)
+emission_enabled = true
+emission = Color(0.9, 0.97, 1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_slash"]
+material = SubResource("StandardMaterial3D_slash")
+size = Vector3(0.08, 0.8, 0.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_slash"]
+size = Vector3(0.2, 0.8, 0.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_slash_detect"]
+size = Vector3(0.4, 1.0, 1.0)
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_slash"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:linear_velocity")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+
+[node name="AirSlash" type="RigidBody3D"]
+collision_layer = 0
+collision_mask = 1
+gravity_scale = 0.0
+script = ExtResource("1_slash")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_slash")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_slash")
+
+[node name="Area3D" type="Area3D" parent="."]
+collision_layer = 4
+collision_mask = 15
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("BoxShape3D_slash_detect")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_slash")

@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://b5f2hddxtfdav"]
+
+[ext_resource type="Script" uid="uid://dd6uluko1u128" path="res://Scripts/Entities/rock_sling.gd" id="1_abc12"]
+[ext_resource type="Texture2D" uid="uid://ytim4n1ldt3f" path="res://addons/kenney_prototype_textures/dark/texture_11.png" id="2_dark"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_rock"]
+radius = 0.25
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rock"]
+albedo_texture = ExtResource("2_dark")
+uv1_scale = Vector3(4, 4, 4)
+
+[sub_resource type="SphereMesh" id="SphereMesh_rock"]
+material = SubResource("StandardMaterial3D_rock")
+radius = 0.25
+height = 0.5
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_rock"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:linear_velocity")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:scale")
+properties/3/spawn = true
+properties/3/replication_mode = 1
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_detect"]
+radius = 0.5
+
+[node name="RockSling" type="RigidBody3D" unique_id=44851470]
+collision_layer = 0
+mass = 2.0
+contact_monitor = true
+max_contacts_reported = 4
+script = ExtResource("1_abc12")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1254127664]
+shape = SubResource("SphereShape3D_rock")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492416363]
+mesh = SubResource("SphereMesh_rock")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1087351015]
+replication_config = SubResource("SceneReplicationConfig_rock")
+
+[node name="Area3D" type="Area3D" parent="." unique_id=2112037757]
+collision_layer = 4
+collision_mask = 15
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D" unique_id=400291546]
+shape = SubResource("SphereShape3D_detect")

@@ -4,18 +4,51 @@
 [ext_resource type="Texture2D" uid="uid://cqibqku84s77x" path="res://addons/tube/icons/tube_context.svg" id="2_kpjcp"]
 [ext_resource type="AudioStream" uid="uid://dt4sjr2il6rba" path="res://Sounds/VFX/click.mp3" id="3_ude3g"]
 [ext_resource type="AudioStream" uid="uid://ywd6vkj5ayfi" path="res://Sounds/VFX/ping.mp3" id="4_jmcll"]
+[ext_resource type="Script" uid="uid://w2bqcojsxq5i" path="res://Scripts/Player/speed_trail.gd" id="5_speedtrail"]
+[ext_resource type="Texture2D" uid="uid://ytim4n1ldt3f" path="res://addons/kenney_prototype_textures/dark/texture_11.png" id="6_boulder_tex"]
+[ext_resource type="PackedScene" uid="uid://dt1rg18r5mplk" path="res://addons/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb" id="7_mannequin"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ikiii"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cbp6q"]
-albedo_color = Color(1, 0, 0, 1)
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_boulder"]
+albedo_texture = ExtResource("6_boulder_tex")
+uv1_scale = Vector3(3, 3, 3)
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_26xuy"]
-material = SubResource("StandardMaterial3D_cbp6q")
+[sub_resource type="SphereMesh" id="SphereMesh_boulder"]
+material = SubResource("StandardMaterial3D_boulder")
+radius = 2.0
+height = 4.0
 
-[sub_resource type="SphereMesh" id="SphereMesh_bc84e"]
-radius = 0.3
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_trajectory"]
+shading_mode = 0
+albedo_color = Color(1, 0.9, 0.2, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_trajectory"]
+material = SubResource("StandardMaterial3D_trajectory")
+radius = 0.08
+height = 0.16
+
+[sub_resource type="MultiMesh" id="MultiMesh_trajectory"]
+transform_format = 1
+instance_count = 20
+mesh = SubResource("SphereMesh_trajectory")
+buffer = PackedFloat32Array(0, 2.5e-44, 1e-45, 0, 2.7e-44, 2.5e-44, 1e-45, 2.4e-44, 3e-45, 1e-45, 2.5e-44, 2.4e-44, 3e-45, 2.2e-44, 4e-45, 3e-45, 2.4e-44, 2.2e-44, 4e-45, 2.1e-44, 6e-45, 4e-45, 2.2e-44, 2.1e-44, 6e-45, 2e-44, 7e-45, 6e-45, 2.1e-44, 2e-44, 7e-45, 1.8e-44, 8e-45, 7e-45, 2e-44, 1.8e-44, 8e-45, 1.7e-44, 1e-44, 8e-45, 1.8e-44, 1.7e-44, 1e-44, 1.5e-44, 1.1e-44, 1e-44, 1.7e-44, 1.5e-44, 1.1e-44, 1.4e-44, 1.3e-44, 1.1e-44, 1.5e-44, 1.4e-44, 2.8e-44, 3.1e-44, 3e-44, 3e-44, 3.2e-44, 3.1e-44, 3.1e-44, 3.4e-44, 3.2e-44, 3.2e-44, 3.5e-44, 3.4e-44, 3.4e-44, 3.6e-44, 3.5e-44, 3.5e-44, 3.8e-44, 3.6e-44, 3.6e-44, 3.9e-44, 3.8e-44, 3.8e-44, 4e-44, 3.9e-44, 3.9e-44, 4.2e-44, 4e-44, 4e-44, 4.3e-44, 4.2e-44, 4.2e-44, 4.5e-44, 4.3e-44, 4.3e-44, 4.6e-44, 4.5e-44, 4.5e-44, 4.8e-44, 4.6e-44, 4.6e-44, 4.9e-44, 4.8e-44, 4.8e-44, 5e-44, 4.9e-44, 4.9e-44, 5.2e-44, 5e-44, 5e-44, 5.3e-44, 5.2e-44, 5.2e-44, 5.5e-44, 5.3e-44, 5.3e-44, 5.6e-44, 5.5e-44, 5.5e-44, 5.7e-44, 5.6e-44, 5.6e-44, 5.9e-44, 5.7e-44, 5.7e-44, 6e-44, 5.9e-44, 5.9e-44, 6.2e-44, 6e-44, 6e-44, 6.3e-44, 6.2e-44, 6.2e-44, 6.4e-44, 6.3e-44, 6.3e-44, 6.6e-44, 6.4e-44, 6.4e-44, 6.7e-44, 6.6e-44, 6.6e-44, 6.9e-44, 6.7e-44, 6.7e-44, 7e-44, 6.9e-44, 6.9e-44, 7.1e-44, 7e-44, 7e-44, 7.3e-44, 7.1e-44, 7.1e-44, 7.4e-44, 7.3e-44, 7.3e-44, 7.6e-44, 7.4e-44, 7.4e-44, 7.7e-44, 7.6e-44, 7.6e-44, 7.8e-44, 7.7e-44, 7.7e-44, 8e-44, 7.8e-44, 7.8e-44, 8.1e-44, 8e-44, 8e-44, 8.3e-44, 8.1e-44, 8.1e-44, 2.8e-44, 8.3e-44, 8.3e-44, 3e-44, 2.8e-44, 0.00037091988, 0.001126126, 0.5, 0.5, 0.161, 0.161, 0.161, 1, 0.0011127597, 0.0016891892, -0.46193975, -0.19134171, 0.161, 0.161, 0.161, 0, 0.0003991545, 0.00091065123, 0.5, 0.5, 0.161, 0.161, 0.161, 1, 0.0011127597, 0.0016891892, -0.3535534, -0.35355335, 0.161, 0.161, 0.161, 0, 0.0004795598, 0.00072798046, 0.5, 0.5, 0.161, 0.161, 0.161, 1, 0.0011127597, 0.0016891892, -0.19134179, -0.46193975, 0.161, 0.161, 0.161, 0, 0.00059989485, 0.0006059237, 0.5, 0.5, 0.161, 0.161, 0.161, 1, 0.0011127597, 0.0016891892, 5.9624403e-09, -0.5, 0.161, 0.161, 0.161, 0, 0.00074183976, 0.0005630631)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_leap_arrow"]
+shading_mode = 0
+albedo_color = Color(0.9, 0.75, 0.3, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_leap_shaft"]
+material = SubResource("StandardMaterial3D_leap_arrow")
+top_radius = 0.05
+bottom_radius = 0.05
 height = 0.6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_leap_head"]
+material = SubResource("StandardMaterial3D_leap_arrow")
+top_radius = 0.0
+bottom_radius = 0.15
+height = 0.3
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_xhfnw"]
 properties/0/path = NodePath(".:position")
@@ -27,6 +60,12 @@ properties/1/replication_mode = 1
 properties/2/path = NodePath("Nameplate:text")
 properties/2/spawn = true
 properties/2/replication_mode = 1
+properties/3/path = NodePath(".:rotation")
+properties/3/spawn = true
+properties/3/replication_mode = 1
+properties/4/path = NodePath("Model:rotation")
+properties/4/spawn = false
+properties/4/replication_mode = 1
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ft8w5"]
 bg_color = Color(1, 1, 1, 1)
@@ -36,30 +75,48 @@ corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
 
 [node name="Player" type="CharacterBody3D" unique_id=1300761473]
-collision_layer = 9
+collision_layer = 2
 script = ExtResource("1_xhfnw")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=180633757]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_ikiii")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=346386928]
+[node name="Model" parent="." unique_id=2118833679 instance=ExtResource("7_mannequin")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
+
+[node name="SpeedTrail" type="MeshInstance3D" parent="." unique_id=61250435]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-mesh = SubResource("CapsuleMesh_26xuy")
+script = ExtResource("5_speedtrail")
+
+[node name="BoulderMesh" type="MeshInstance3D" parent="." unique_id=1683555268]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+visible = false
+mesh = SubResource("SphereMesh_boulder")
+
+[node name="TrajectoryIndicator" type="MultiMeshInstance3D" parent="." unique_id=1980269689]
+visible = false
+multimesh = SubResource("MultiMesh_trajectory")
+
+[node name="LeapIndicator" type="Node3D" parent="." unique_id=668245608]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+visible = false
+
+[node name="Shaft" type="MeshInstance3D" parent="LeapIndicator" unique_id=386705930]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("CylinderMesh_leap_shaft")
+
+[node name="ArrowHead" type="MeshInstance3D" parent="LeapIndicator" unique_id=864033600]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+mesh = SubResource("CylinderMesh_leap_head")
 
 [node name="Head" type="Node3D" parent="." unique_id=817064744]
-
-[node name="MeshInstance3D2" type="MeshInstance3D" parent="Head" unique_id=1718167258]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.26996768, 1.6827679, -0.13358402)
-mesh = SubResource("SphereMesh_bc84e")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Head" unique_id=1170060844]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.28226566, 1.6892955, -0.13962707)
-mesh = SubResource("SphereMesh_bc84e")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Head" unique_id=1499467865]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005257249, 1.7585075, -0.07494867)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.4, 3.5)
+fov = 90.0
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1158468212]
 replication_config = SubResource("SceneReplicationConfig_xhfnw")
@@ -127,6 +184,31 @@ layout_mode = 2
 text = "Leave Game
 "
 
+[node name="LabelElement" type="Label" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=432607697]
+layout_mode = 2
+text = "Choose your element"
+
+[node name="HBoxContainerElement" type="HBoxContainer" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=650341057]
+layout_mode = 2
+
+[node name="ButtonFire" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer/HBoxContainerElement" unique_id=28065158]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Fire"
+
+[node name="ButtonEarth" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer/HBoxContainerElement" unique_id=877931524]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Earth"
+
+[node name="ButtonAir" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer/HBoxContainerElement" unique_id=800846066]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Air"
+
 [node name="Reticle" type="Panel" parent="CanvasLayer" unique_id=1682414558]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(5, 5)
@@ -145,6 +227,23 @@ scale = Vector2(1.5, 1)
 pivot_offset_ratio = Vector2(0.5, 0)
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ft8w5")
+
+[node name="ControlsLabel" type="Label" parent="CanvasLayer" unique_id=1497727311]
+unique_name_in_owner = true
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -220.0
+offset_right = 520.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 16
+text = "EARTH"
+vertical_alignment = 2
 
 [node name="HitMarker" type="Label" parent="CanvasLayer" unique_id=1551205812]
 unique_name_in_owner = true

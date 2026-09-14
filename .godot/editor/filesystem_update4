@@ -1,0 +1,3 @@
+res://addons/StatusFXFree/assets/BinbunVFX_Vol2/StatusFX/shader/bubble_particle.gdshader
+res://Scripts/Entities/air_projectile.gd
+res://Scripts/Player/Player.gd

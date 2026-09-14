@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://c1v7xmpf0d9dhq"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/rock_decal.gd" id="1_decal"]
+[ext_resource type="Texture2D" path="res://addons/kenney_prototype_textures/dark/texture_01.png" id="2_decal_tex"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_decal"]
+radius = 0.3
+height = 0.05
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_decal"]
+albedo_texture = ExtResource("2_decal_tex")
+uv1_scale = Vector3(2.0, 2.0, 2.0)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_decal"]
+material = SubResource("StandardMaterial3D_decal")
+top_radius = 0.3
+bottom_radius = 0.3
+height = 0.05
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_detect"]
+radius = 0.375
+height = 0.25
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_decal"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:scale")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[node name="RockDecal" type="Area3D" unique_id=44851471]
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("1_decal")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1254127665]
+shape = SubResource("CylinderShape3D_decal")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492416364]
+mesh = SubResource("CylinderMesh_decal")
+
+[node name="DetectionArea" type="CollisionShape3D" parent="." unique_id=400291547]
+shape = SubResource("CylinderShape3D_detect")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_decal")

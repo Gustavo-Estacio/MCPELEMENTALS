@@ -23,7 +23,7 @@ glow_enabled = true
 plane = Plane(1, 0, 0, 0)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_hveh7"]
-size = Vector2(50, 2)
+size = Vector2(125, 5)
 orientation = 0
 
 [sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_87yka"]
@@ -31,7 +31,7 @@ plane = Plane(-1, 0, 0, 0)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_kjd5s"]
 flip_faces = true
-size = Vector2(50, 2)
+size = Vector2(125, 5)
 orientation = 0
 
 [sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_p7pgw"]
@@ -39,14 +39,14 @@ plane = Plane(0, 0, -1, 0)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_kuxid"]
 flip_faces = true
-size = Vector2(50, 2)
+size = Vector2(125, 5)
 orientation = 2
 
 [sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_ng1ea"]
 plane = Plane(0, 0, 1, 0)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_0d0er"]
-size = Vector2(50, 2)
+size = Vector2(125, 5)
 orientation = 2
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ic0uy"]
@@ -80,7 +80,7 @@ uv1_scale = Vector3(11.835, 11.835, 11.835)
 [sub_resource type="PlaneMesh" id="PlaneMesh_f3sb7"]
 lightmap_size_hint = Vector2i(152, 152)
 material = SubResource("StandardMaterial3D_udxuc")
-size = Vector2(30, 30)
+size = Vector2(75, 75)
 
 [node name="World" type="Node3D" unique_id=283343961]
 script = ExtResource("1_eu7l1")
@@ -97,28 +97,28 @@ shadow_enabled = true
 [node name="Paredes" type="StaticBody3D" parent="Enviroment" unique_id=1084307649]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1168372644]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.5, 0, 0)
 shape = SubResource("WorldBoundaryShape3D_27jhl")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D" unique_id=1081586802]
 mesh = SubResource("PlaneMesh_hveh7")
 
 [node name="CollisionShape3D2" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1889073721]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.5, 0, 0)
 shape = SubResource("WorldBoundaryShape3D_87yka")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D2" unique_id=1451254542]
 mesh = SubResource("PlaneMesh_kjd5s")
 
 [node name="CollisionShape3D3" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1893515958]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 37.5)
 shape = SubResource("WorldBoundaryShape3D_p7pgw")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D3" unique_id=612014220]
 mesh = SubResource("PlaneMesh_kuxid")
 
 [node name="CollisionShape3D4" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=667071151]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -37.5)
 shape = SubResource("WorldBoundaryShape3D_ng1ea")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D4" unique_id=383816775]
@@ -165,7 +165,7 @@ shape = SubResource("BoxShape3D_70uel")
 script = ExtResource("5_p1v5b")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=1712097946]
-_spawnable_scenes = PackedStringArray("uid://wj1j5cg0flnj", "uid://be342wrf0687")
+_spawnable_scenes = PackedStringArray("uid://wj1j5cg0flnj", "uid://be342wrf0687", "uid://c1v7xmpf0d9dg8", "uid://b5f2hddxtfdaw", "uid://c1v7xmpf0d9dhq", "uid://b5f2hddxtfdax", "uid://dxg1kgamplbj4", "res://Scenes/Effects/earth_spike.tscn", "res://Scenes/Effects/air_slash.tscn", "res://Scenes/Effects/wind_particles.tscn", "res://Scenes/Effects/tornado.tscn", "res://Scenes/Effects/wind_torrent.tscn")
 spawn_path = NodePath("../SpawnContainer")
 
 [node name="TimerTarget" type="Timer" parent="." unique_id=1581330907]

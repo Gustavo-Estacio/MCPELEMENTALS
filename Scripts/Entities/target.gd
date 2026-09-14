@@ -5,7 +5,7 @@ extends StaticBody3D
 func _ready():
 	add_to_group('Targets')
 
-func take_damage(damage: int, source: int):
+func take_damage(damage: int, source: int, _element: int = -1):
 	var next_health = health - damage
 	
 	var player_to_notify: Player
