@@ -19,6 +19,36 @@ sky = SubResource("Sky_ioo17")
 tonemap_mode = 2
 glow_enabled = true
 
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_27jhl"]
+plane = Plane(1, 0, 0, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_hveh7"]
+size = Vector2(50, 2)
+orientation = 0
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_87yka"]
+plane = Plane(-1, 0, 0, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_kjd5s"]
+flip_faces = true
+size = Vector2(50, 2)
+orientation = 0
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_p7pgw"]
+plane = Plane(0, 0, -1, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_kuxid"]
+flip_faces = true
+size = Vector2(50, 2)
+orientation = 2
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_ng1ea"]
+plane = Plane(0, 0, 1, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_0d0er"]
+size = Vector2(50, 2)
+orientation = 2
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ic0uy"]
 height = 8.739746
 
@@ -63,6 +93,36 @@ transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545
 shadow_enabled = true
 
 [node name="Enviroment" type="Node" parent="." unique_id=267928578]
+
+[node name="Paredes" type="StaticBody3D" parent="Enviroment" unique_id=1084307649]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1168372644]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 0)
+shape = SubResource("WorldBoundaryShape3D_27jhl")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D" unique_id=1081586802]
+mesh = SubResource("PlaneMesh_hveh7")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1889073721]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 0)
+shape = SubResource("WorldBoundaryShape3D_87yka")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D2" unique_id=1451254542]
+mesh = SubResource("PlaneMesh_kjd5s")
+
+[node name="CollisionShape3D3" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=1893515958]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+shape = SubResource("WorldBoundaryShape3D_p7pgw")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D3" unique_id=612014220]
+mesh = SubResource("PlaneMesh_kuxid")
+
+[node name="CollisionShape3D4" type="CollisionShape3D" parent="Enviroment/Paredes" unique_id=667071151]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -15)
+shape = SubResource("WorldBoundaryShape3D_ng1ea")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Enviroment/Paredes/CollisionShape3D4" unique_id=383816775]
+mesh = SubResource("PlaneMesh_0d0er")
 
 [node name="StaticBody3D4" type="StaticBody3D" parent="Enviroment" unique_id=905383269]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0029898, -0.44232178, 5.321989)

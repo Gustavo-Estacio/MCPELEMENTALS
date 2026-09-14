@@ -27,7 +27,7 @@ func _ready() -> void:
 	button_quit.pressed.connect(func(): get_tree().quit())
 	
 	line_edit_session.text_changed.connect(update_session)
-	line_edit_session.text_changed.connect(update_username)
+	line_edit_username.text_changed.connect(update_username)
 	button_join_tube.disabled = true
 	button_join_tube.pressed.connect(on_join_tube)
 	button_quit_tube.pressed.connect(func(): get_tree().quit())

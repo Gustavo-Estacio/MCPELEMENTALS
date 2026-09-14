@@ -1,0 +1,14 @@
+MeshInstance3D
+CollisionShape3D
+StaticBody3D
+AudioStreamPlayer
+Label
+Panel
+Control
+MultiplayerSynchronizer
+MultiplayerSpawner
+Timer
+Button
+HBoxContainer
+VBoxContainer
+HSeparator

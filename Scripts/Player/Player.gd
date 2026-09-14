@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+class_name Player
+
 const SPEED = 5.0
 const JUMP_VELOCITY = 4.5
 @export var sensitivity := 0.002
@@ -13,6 +15,12 @@ const JUMP_VELOCITY = 4.5
 @onready var label_session: Label = %LabelSession
 @onready var button_copy_session: Button = %ButtonCopySession
 
+@onready var reticle: Panel = %Reticle
+@onready var hit_marker: Label = %HitMarker
+@onready var canvas_layer: CanvasLayer = $CanvasLayer
+@onready var sound_hit: AudioStreamPlayer = %SoundHit
+@onready var sound_ping: AudioStreamPlayer = %SoundPing
+
 var immobile := false
 
 func _enter_tree() -> void:
@@ -22,21 +30,23 @@ func _ready():
 	menu.hide()
 	add_to_group('Players')
 	nameplate.text = name
+	hit_marker.hide()
 	
 	if not is_multiplayer_authority():
 		set_process(false)
 		set_physics_process(false)
+		canvas_layer.hide()
 		return
 	
+	if Global.username: nameplate.text = Global.username
 	
-	if is_multiplayer_authority():
-		label_session.text = Network.tube_client.session_id
-		camera_3d.current = true
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-		button_leave.pressed.connect(func(): Network.leave_server())
-		button_copy_session.pressed.connect(func(): DisplayServer.clipboard_set(Network.tube_client.session_id))
-		DisplayServer.clipboard_set(Network.tube_client.session_id)
-	
+	label_session.text = Network.tube_client.session_id
+	camera_3d.current = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	button_leave.pressed.connect(func(): Network.leave_server())
+	button_copy_session.pressed.connect(func(): DisplayServer.clipboard_set(Network.tube_client.session_id))
+	DisplayServer.clipboard_set(Network.tube_client.session_id)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
@@ -106,4 +116,14 @@ func get_shoot_direction():
 	var raycast_start = camera_3d.project_ray_origin(viewport_rect/2)
 	var raycast_end = raycast_start + camera_3d.project_ray_normal(viewport_rect/2)
 	return -(raycast_start - raycast_end).normalized()
+
+@rpc("any_peer", "call_local")
+func register_hit(is_dead = false):
+	if is_dead:
+		sound_ping.play()
+	else:
+		sound_hit.play()
 	
+	hit_marker.show()
+	await get_tree().create_timer(0.2).timeout
+	hit_marker.hide()
