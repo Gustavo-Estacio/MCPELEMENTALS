@@ -102,6 +102,9 @@ class_name Player
 @onready var button_fire: Button = %ButtonFire
 @onready var button_earth: Button = %ButtonEarth
 @onready var button_air: Button = %ButtonAir
+@onready var button_element_earth: Button = %ButtonElementEarth
+@onready var button_element_fire: Button = %ButtonElementFire
+@onready var button_element_air: Button = %ButtonElementAir
 @onready var controls_label: Label = %ControlsLabel
 @onready var label_session: Label = %LabelSession
 @onready var button_copy_session: Button = %ButtonCopySession
@@ -221,6 +224,10 @@ func _ready():
 	button_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
+
+	button_element_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
+	button_element_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
+	button_element_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
 
 	rock_sling_ability = RockSlingAbility.new()
 	fireball_ability = FireBallAbility.new()
@@ -624,9 +631,21 @@ func _apply_player_element(elem: int) -> void:
 
 	_tint_model_recursive(player_mesh, tint)
 
-	# O texto de controles é só do próprio jogador (CanvasLayer já é escondido de todo mundo
-	# que não é a autoridade), então atualizar em todo mundo aqui não vaza nada.
+	# O texto de controles e a hotbar são só do próprio jogador (CanvasLayer já é
+	# escondido de todo mundo que não é a autoridade), então atualizar em todo
+	# mundo aqui não vaza nada.
 	_update_controls_label(elem)
+	_update_element_bar(elem)
+
+
+func _update_element_bar(elem: int) -> void:
+	match elem:
+		ElementsEnum.Element.FIRE:
+			button_element_fire.button_pressed = true
+		ElementsEnum.Element.AIR:
+			button_element_air.button_pressed = true
+		_:
+			button_element_earth.button_pressed = true
 
 
 func _update_controls_label(elem: int) -> void:
