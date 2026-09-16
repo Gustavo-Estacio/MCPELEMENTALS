@@ -2,56 +2,244 @@
 
 [ext_resource type="Script" path="res://Scripts/Entities/explosion.gd" id="1_explosion"]
 
+[sub_resource type="Curve" id="Curve_spark_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.35, 0.8), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_spark_scale"]
+curve = SubResource("Curve_spark_scale")
+
+[sub_resource type="Curve" id="Curve_spark_alpha"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.55, 0.85), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_spark_alpha"]
+curve = SubResource("Curve_spark_alpha")
+
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_fireburst"]
 emission_shape = 1
-emission_sphere_radius = 0.3
+emission_sphere_radius = 0.25
 direction = Vector3(0, 1, 0)
 spread = 180.0
-initial_velocity_min = 4.0
-initial_velocity_max = 8.0
-angular_velocity_min = -6.0
-angular_velocity_max = 6.0
-gravity = Vector3(0, -9, 0)
-scale_min = 0.5
-scale_max = 1.5
-color = Color(1, 0.5, 0, 1)
+initial_velocity_min = 3.0
+initial_velocity_max = 7.0
+angular_velocity_min = -3.0
+angular_velocity_max = 3.0
+gravity = Vector3(0, -6, 0)
+damping_min = 3.0
+damping_max = 6.0
+scale_min = 0.6
+scale_max = 1.2
+scale_curve = SubResource("CurveTexture_spark_scale")
+color = Color(1, 0.62, 0.22, 1)
+alpha_curve = SubResource("CurveTexture_spark_alpha")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fireburst"]
 transparency = 1
-cull_mode = 1
-albedo_color = Color(1, 0.6, 0.2, 0.85)
+blend_mode = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 0.62, 0.22, 0.9)
 emission_enabled = true
-emission = Color(1, 0.4, 0, 1)
-emission_energy_multiplier = 2.5
+emission = Color(1, 0.45, 0.1, 1)
+emission_energy_multiplier = 1.6
 
 [sub_resource type="SphereMesh" id="SphereMesh_fireburst"]
 material = SubResource("StandardMaterial3D_fireburst")
-radius = 0.2
-height = 0.4
+radius = 0.06
+height = 0.12
+radial_segments = 8
+rings = 4
+
+[sub_resource type="Curve" id="Curve_stem_scale"]
+_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(0.5, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.7), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_stem_scale"]
+curve = SubResource("Curve_stem_scale")
+
+[sub_resource type="Curve" id="Curve_stem_alpha"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.1, 0.9), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_stem_alpha"]
+curve = SubResource("Curve_stem_alpha")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_stem"]
+emission_shape = 1
+emission_sphere_radius = 0.25
+direction = Vector3(0, 1, 0)
+spread = 12.0
+initial_velocity_min = 5.5
+initial_velocity_max = 8.5
+angular_velocity_min = -1.0
+angular_velocity_max = 1.0
+gravity = Vector3(0, -1.0, 0)
+damping_min = 4.0
+damping_max = 7.0
+scale_min = 0.5
+scale_max = 0.9
+scale_curve = SubResource("CurveTexture_stem_scale")
+color = Color(0.35, 0.3, 0.27, 1)
+alpha_curve = SubResource("CurveTexture_stem_alpha")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_stem"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.35, 0.3, 0.27, 0.5)
+
+[sub_resource type="SphereMesh" id="SphereMesh_stem"]
+material = SubResource("StandardMaterial3D_stem")
+radius = 0.14
+height = 0.28
+radial_segments = 8
+rings = 5
+
+[sub_resource type="Curve" id="Curve_cap_scale"]
+_data = [Vector2(0, 0.2), 0.0, 0.0, 0, 0, Vector2(0.4, 1), 0.0, 0.0, 0, 0, Vector2(1, 1.3), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_cap_scale"]
+curve = SubResource("Curve_cap_scale")
+
+[sub_resource type="Curve" id="Curve_cap_alpha"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.2, 0.75), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_cap_alpha"]
+curve = SubResource("Curve_cap_alpha")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_cap"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, -0.25, 0)
+spread = 100.0
+initial_velocity_min = 2.5
+initial_velocity_max = 4.5
+angular_velocity_min = -1.5
+angular_velocity_max = 1.5
+gravity = Vector3(0, -0.6, 0)
+damping_min = 1.0
+damping_max = 2.0
+scale_min = 0.6
+scale_max = 1.1
+scale_curve = SubResource("CurveTexture_cap_scale")
+color = Color(0.4, 0.37, 0.34, 1)
+alpha_curve = SubResource("CurveTexture_cap_alpha")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cap"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.4, 0.37, 0.34, 0.3)
+
+[sub_resource type="SphereMesh" id="SphereMesh_cap"]
+material = SubResource("StandardMaterial3D_cap")
+radius = 0.16
+height = 0.32
+radial_segments = 8
+rings = 5
+
+[sub_resource type="Curve" id="Curve_shock_scale"]
+_data = [Vector2(0, 0.2), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_shock_scale"]
+curve = SubResource("Curve_shock_scale")
+
+[sub_resource type="Curve" id="Curve_shock_alpha"]
+_data = [Vector2(0, 0.9), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_shock_alpha"]
+curve = SubResource("Curve_shock_alpha")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_shock"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_radius = 0.15
+emission_ring_inner_radius = 0.1
+emission_ring_height = 0.0
+direction = Vector3(1, 0, 0)
+spread = 180.0
+flatness = 1.0
+initial_velocity_min = 5.0
+initial_velocity_max = 7.0
+gravity = Vector3(0, 0, 0)
+damping_min = 6.0
+damping_max = 9.0
+scale_min = 1.0
+scale_max = 1.0
+scale_curve = SubResource("CurveTexture_shock_scale")
+color = Color(1, 0.75, 0.4, 1)
+alpha_curve = SubResource("CurveTexture_shock_alpha")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shock"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 0.75, 0.4, 0.5)
+emission_enabled = true
+emission = Color(1, 0.6, 0.3, 1)
+emission_energy_multiplier = 1.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_shock"]
+material = SubResource("StandardMaterial3D_shock")
+radius = 0.1
+height = 0.05
+radial_segments = 8
+rings = 3
+
+[sub_resource type="Curve" id="Curve_smoke_scale"]
+_data = [Vector2(0, 0.35), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_smoke_scale"]
+curve = SubResource("Curve_smoke_scale")
+
+[sub_resource type="Curve" id="Curve_smoke_alpha"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.15, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_smoke_alpha"]
+curve = SubResource("Curve_smoke_alpha")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
 emission_shape = 1
-emission_sphere_radius = 0.4
+emission_sphere_radius = 0.35
 direction = Vector3(0, 1, 0)
-spread = 45.0
-initial_velocity_min = 1.0
-initial_velocity_max = 3.0
-angular_velocity_min = -2.0
-angular_velocity_max = 2.0
-gravity = Vector3(0, -1, 0)
-scale_min = 0.8
-scale_max = 2.0
-color = Color(0.25, 0.22, 0.2, 0.8)
+spread = 55.0
+initial_velocity_min = 1.2
+initial_velocity_max = 2.6
+angular_velocity_min = -1.5
+angular_velocity_max = 1.5
+gravity = Vector3(0, 0.4, 0)
+damping_min = 1.0
+damping_max = 2.0
+scale_min = 0.5
+scale_max = 1.0
+scale_curve = SubResource("CurveTexture_smoke_scale")
+color = Color(0.45, 0.43, 0.42, 1)
+alpha_curve = SubResource("CurveTexture_smoke_alpha")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
 transparency = 1
-cull_mode = 1
-albedo_color = Color(0.25, 0.22, 0.2, 0.6)
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.45, 0.43, 0.42, 0.22)
 
 [sub_resource type="SphereMesh" id="SphereMesh_smoke"]
 material = SubResource("StandardMaterial3D_smoke")
-radius = 0.35
-height = 0.7
+radius = 0.12
+height = 0.24
+radial_segments = 8
+rings = 5
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_explosion"]
 properties/0/path = NodePath(".:position")
@@ -65,23 +253,59 @@ properties/1/replication_mode = 1
 script = ExtResource("1_explosion")
 
 [node name="FireBurst" type="GPUParticles3D" parent="."]
+cast_shadow = 0
 process_material = SubResource("ParticleProcessMaterial_fireburst")
 draw_pass_1 = SubResource("SphereMesh_fireburst")
 emitting = false
 one_shot = true
 explosiveness = 1.0
-amount = 60
-lifetime = 0.8
-speed_scale = 1.5
+amount = 48
+lifetime = 0.55
+speed_scale = 1.0
+
+[node name="Shockwave" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+process_material = SubResource("ParticleProcessMaterial_shock")
+draw_pass_1 = SubResource("SphereMesh_shock")
+emitting = false
+one_shot = true
+explosiveness = 1.0
+amount = 28
+lifetime = 0.4
+speed_scale = 1.0
+
+[node name="Stem" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+process_material = SubResource("ParticleProcessMaterial_stem")
+draw_pass_1 = SubResource("SphereMesh_stem")
+emitting = false
+one_shot = true
+explosiveness = 0.9
+amount = 22
+lifetime = 1.1
+speed_scale = 1.0
+
+[node name="Cap" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+cast_shadow = 0
+process_material = SubResource("ParticleProcessMaterial_cap")
+draw_pass_1 = SubResource("SphereMesh_cap")
+emitting = false
+one_shot = true
+explosiveness = 0.5
+amount = 36
+lifetime = 1.6
+speed_scale = 1.0
 
 [node name="Smoke" type="GPUParticles3D" parent="."]
+cast_shadow = 0
 process_material = SubResource("ParticleProcessMaterial_smoke")
 draw_pass_1 = SubResource("SphereMesh_smoke")
 emitting = false
 one_shot = true
-explosiveness = 0.6
-amount = 40
-lifetime = 2.5
+explosiveness = 0.7
+amount = 26
+lifetime = 1.6
 speed_scale = 1.0
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]

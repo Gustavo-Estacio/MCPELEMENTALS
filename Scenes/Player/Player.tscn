@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://w2bqcojsxq5i" path="res://Scripts/Player/speed_trail.gd" id="5_speedtrail"]
 [ext_resource type="Texture2D" uid="uid://ytim4n1ldt3f" path="res://addons/kenney_prototype_textures/dark/texture_11.png" id="6_boulder_tex"]
 [ext_resource type="PackedScene" uid="uid://dt1rg18r5mplk" path="res://addons/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb" id="7_mannequin"]
+[ext_resource type="PackedScene" uid="uid://6isg4wakcmgj" path="res://Assets/Player/Golem/golem.glb" id="8_golem"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ikiii"]
 
@@ -66,6 +67,12 @@ properties/3/replication_mode = 1
 properties/4/path = NodePath("Model:rotation")
 properties/4/spawn = false
 properties/4/replication_mode = 1
+properties/5/path = NodePath("BoulderMesh:rotation")
+properties/5/spawn = true
+properties/5/replication_mode = 1
+properties/6/path = NodePath("GolemModel:rotation")
+properties/6/spawn = false
+properties/6/replication_mode = 1
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ft8w5"]
 bg_color = Color(1, 1, 1, 1)
@@ -83,7 +90,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_ikiii")
 
 [node name="Model" parent="." unique_id=2118833679 instance=ExtResource("7_mannequin")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0, 0, 0)
+
+[node name="GolemModel" parent="." unique_id=541504292 instance=ExtResource("8_golem")]
 
 [node name="SpeedTrail" type="MeshInstance3D" parent="." unique_id=61250435]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
@@ -208,6 +217,12 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Air"
+
+[node name="ButtonGolem" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer/HBoxContainerElement" unique_id=800846099]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Golem"
 
 [node name="Reticle" type="Panel" parent="CanvasLayer" unique_id=1682414558]
 unique_name_in_owner = true

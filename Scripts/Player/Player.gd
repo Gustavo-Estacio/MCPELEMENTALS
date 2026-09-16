@@ -37,6 +37,7 @@ class_name Player
 @export var BOULDER_GROW_DISTANCE := 35.0  # distância percorrida até alcançar o tamanho máximo (não cresce parado)
 @export var BOULDER_START_SCALE := 0.5  # começa do tamanho aproximado do jogador (diâmetro 2.0 = metade do máximo 4.0)
 @export var BOULDER_TURN_RATE := 1.6  # rad/s, bem mais devagar — difícil de ajustar a direção, feito uma pedra pesada
+@export var ROLL_ANIM_SPEED_MULTIPLIER := 2.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
 
 @export_group("Fire Dash (Fire Shift)")
@@ -51,12 +52,14 @@ class_name Player
 @export var SPIKE_COUNT := 12
 @export var SPIKE_INTERVAL := 0.06
 
-@export_group("Rock Barrage (LMB/RMB Earth)")
+@export_group("Punch Combo (LMB Earth)")
 @export var LMB_SHOT_INTERVAL := 0.12
-@export var LMB_WAVES_BEFORE_BIG := 3
-@export var LMB_RELOAD_TIME := 1.5
+
+@export_group("Rock Barrage (RMB Earth)")
 @export var RMB_SHOT_INTERVAL := 0.15
 @export var RMB_RELOAD_TIME := 2.0
+
+const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 
 @export_group("Air Dash (Air Shift)")
 @export var AIR_DASH_MAX_STACKS := 3
@@ -92,12 +95,22 @@ class_name Player
 @export var ANIM_BLEND_TIME := 0.15
 @export var MODEL_TURN_RATE := 10.0  # rad/s, giro do modelo pra encarar a direção que anda
 
+@export_group("Torso Aim (torso sempre de costas pra câmera, pés livres)")
+@export var TORSO_YAW_MAX_DEGREES := 75.0
+@export var TORSO_TWIST_LERP_SPEED := 12.0
+@export var TORSO_DEBUG := false  # imprime no console o osso escolhido + os ângulos, pra diagnosticar
+
+@export_group("Model Facing (cada rig tem sua própria convenção de eixo 'frente')")
+@export var MANNEQUIN_FACING_FLIP_DEGREES := 180.0  # rig encara +Z, precisa desse flip pra bater com a direção do movimento
+@export var GOLEM_FACING_FLIP_DEGREES := 180.0  # rig encara -Y no Blender, mas de frente (ver memory golem-rig-source) — precisa do flip pra ficar de costas pra câmera igual o Mannequin
+
 @onready var nameplate: Label3D = %Nameplate
 @onready var menu: Control = %Menu
 @onready var button_leave: Button = %ButtonLeave
 @onready var button_fire: Button = %ButtonFire
 @onready var button_earth: Button = %ButtonEarth
 @onready var button_air: Button = %ButtonAir
+@onready var button_golem: Button = %ButtonGolem
 @onready var controls_label: Label = %ControlsLabel
 @onready var label_session: Label = %LabelSession
 @onready var button_copy_session: Button = %ButtonCopySession
@@ -111,10 +124,24 @@ class_name Player
 @onready var speed_trail: SpeedTrail = $SpeedTrail
 @onready var trajectory_indicator: MultiMeshInstance3D = $TrajectoryIndicator
 @onready var leap_indicator: Node3D = $LeapIndicator
-@onready var player_mesh: Node3D = $Model
+@onready var mannequin_mesh: Node3D = $Model
+@onready var golem_mesh: Node3D = $GolemModel
 @onready var boulder_mesh: MeshInstance3D = $BoulderMesh
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
-@onready var animation_player: AnimationPlayer = $Model/AnimationPlayer
+@onready var mannequin_animation_player: AnimationPlayer = $Model/AnimationPlayer
+
+# Modelo/animation player/skeleton "ativos" — trocam de alvo quando o elemento GOLEM
+# é selecionado (botão 4), reaproveitando o mesmo código de facing/tint/animação
+# que já existe pro Mannequin, só apontando pro rig do golem enquanto ele estiver ativo.
+var player_mesh: Node3D
+var animation_player: AnimationPlayer
+var golem_animation_player: AnimationPlayer
+var _golem_foliage_meshes: Array[MeshInstance3D] = []  # Leaves_*/Moss_*: escondidas só durante o Roll, ver _reset_golem_foliage
+
+var _mannequin_skeleton: Skeleton3D
+var _mannequin_torso_bone_idx := -1
+var _golem_skeleton: Skeleton3D
+var _golem_torso_bone_idx := -1
 
 var animation_fsm := PlayerAnimationFSM.new()
 
@@ -131,6 +158,8 @@ var is_moving := false
 var is_crouching := false
 
 var is_boulder := false
+var _is_boulder_dash_launching := false  # mini pulinho antes do Boulder Dash de fato começar
+var _boulder_launch_initial_vy := 0.0
 var boulder_timer := 0.0
 var boulder_distance_traveled := 0.0
 var boulder_infused_with := -1
@@ -143,6 +172,7 @@ var _boulder_was_airborne := false
 var shake_trauma := 0.0
 var _shake_noise := FastNoiseLite.new()
 var _shake_time := 0.0
+var _base_camera_rotation := Vector3.ZERO
 
 # Abilities
 var rock_sling_ability: RockSlingAbility
@@ -176,6 +206,18 @@ var is_gliding := false
 var cast_fov_kick := 0.0  # pulso de FOV ao soltar Wind Torrent/Tornado, decai sozinho de volta ao normal
 var has_air_jump := true  # duplo pulo: 1 pulo extra no ar, recarrega ao pousar ou usar o air dash
 
+# Jump animation tracking
+var _jump_start_height := 0.0
+var _last_jump_animation := ""  # qual animação de pulo estava tocando
+var _is_in_jump_ascent := false
+
+# Torso aim: torce os ossos da espinha pra encarar a mira (root/câmera), independente
+# de pra onde o Model (pernas) gira pra seguir o movimento
+var _skeleton: Skeleton3D
+var _torso_bone_idx := -1
+var _torso_twist_yaw := 0.0
+var _torso_debug_timer := 0.0
+
 func _enter_tree() -> void:
 	set_multiplayer_authority(int(name))
 
@@ -185,9 +227,49 @@ func _ready():
 	nameplate.text = name
 	hit_marker.hide()
 
-	# Aplica a tinta do elemento padrão localmente, pra QUALQUER peer que veja esse player
-	# (incluindo os que não são a autoridade dele) já começar com a cor certa, não amarelo/padrão
+	# Descobre skeleton/osso de torso/AnimationPlayer de CADA modelo (Mannequin e Golem)
+	# uma vez só, no boot. O golem não tem osso "spine" (rig próprio: Head/Chest/Hip/...),
+	# então seu torso-aim simplesmente fica desativado (_golem_torso_bone_idx == -1) — não
+	# tiver osso compatível, não tenta torcer nada.
+	_mannequin_skeleton = _find_skeleton(mannequin_mesh)
+	if _mannequin_skeleton:
+		_mannequin_torso_bone_idx = _find_torso_bone(_mannequin_skeleton)
+
+	golem_animation_player = _find_animation_player(golem_mesh)
+	_golem_skeleton = _find_skeleton(golem_mesh)
+	if _golem_skeleton:
+		_golem_torso_bone_idx = _find_torso_bone(_golem_skeleton)
+	_find_golem_foliage_meshes(golem_mesh, _golem_foliage_meshes)
+
+	# Aplica a tinta/modelo/animação do elemento padrão localmente, pra QUALQUER peer que
+	# veja esse player (incluindo os que não são a autoridade dele) já começar certo
 	_apply_player_element(player_element)
+
+	# Torso aim precisa rodar pra QUALQUER peer (todo mundo vê o torso dos outros players
+	# torcendo), então conecta antes do "return" de autoridade abaixo.
+	# Só UM osso (o mais alto da espinha, perto do peito/ombros): torcer os 3 em cadeia
+	# faz cada um girar no espaço já rotacionado do pai anterior, virando um "saca-rolha"
+	# que distorce braços/pernas — um osso só dá a torção limpa do peito, sem esse efeito.
+	# O advance manual é sempre no AnimationPlayer do Mannequin: é o único rig com torso aim,
+	# o golem toca suas próprias animações no modo automático normal do Godot.
+	if _mannequin_torso_bone_idx != -1:
+		# Controle manual: o AnimationPlayer só escreve os ossos quando A GENTE manda (advance()),
+		# nunca mais sozinho num momento indeterminado do frame. Assim o twist do torso, chamado
+		# logo em seguida na MESMA função, é sempre a última coisa a escrever o osso — sem essa
+		# garantia, a animação vencia a corrida na maioria dos frames e só "revelava" o twist
+		# quando a pose ficava parada (por isso só virava no fim da animação).
+		mannequin_animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		get_tree().process_frame.connect(_advance_animation_and_torso)
+	else:
+		push_warning("Torso aim desativado: skeleton=%s, nenhum osso 'spine' encontrado." % _mannequin_skeleton)
+
+	if TORSO_DEBUG and _skeleton:
+		var bone_names := []
+		for i in range(_skeleton.get_bone_count()):
+			bone_names.append("%d:%s" % [i, _skeleton.get_bone_name(i)])
+		var chosen = _skeleton.get_bone_name(_torso_bone_idx) if _torso_bone_idx != -1 else "NENHUM"
+		print("[TorsoAim] skeleton=%s | osso escolhido=%s" % [_skeleton.name, chosen])
+		print("[TorsoAim] ossos: %s" % ", ".join(bone_names))
 
 	if not is_multiplayer_authority():
 		set_process(false)
@@ -205,6 +287,7 @@ func _ready():
 	button_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
+	button_golem.pressed.connect(func(): _set_player_element(ElementsEnum.Element.GOLEM))
 
 	rock_sling_ability = RockSlingAbility.new()
 	fireball_ability = FireBallAbility.new()
@@ -215,6 +298,7 @@ func _ready():
 
 	camera_3d.current = true
 	base_fov = camera_3d.fov
+	_base_camera_rotation = camera_3d.rotation
 	trajectory_indicator.hide()
 	leap_indicator.hide()
 
@@ -266,8 +350,9 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed('select_air'):
 		_set_player_element(ElementsEnum.Element.AIR)
 
-	# Abilities — cada uma se comporta diferente dependendo do elemento escolhido
-	var is_earth = player_element == ElementsEnum.Element.EARTH
+	# Abilities — cada uma se comporta diferente dependendo do elemento escolhido.
+	# GOLEM joga IGUAL a EARTH (mesmas habilidades); só muda o modelo/animação.
+	var is_earth = player_element == ElementsEnum.Element.EARTH or player_element == ElementsEnum.Element.GOLEM
 	var is_fire = player_element == ElementsEnum.Element.FIRE
 	var is_air = player_element == ElementsEnum.Element.AIR
 
@@ -348,8 +433,8 @@ func _process(delta: float) -> void:
 	if is_earth and Input.is_action_just_pressed('skill_shift') and not is_charging_q and not is_charging_leap:
 		if is_boulder:
 			_end_boulder_dash()
-		else:
-			_start_boulder_dash()
+		elif not _is_boulder_dash_launching:
+			_start_boulder_dash_launch()
 
 	if is_fire and Input.is_action_just_pressed('skill_shift') and not is_fire_dashing:
 		_start_fire_dash()
@@ -394,6 +479,16 @@ func _physics_process(delta: float) -> void:
 	if should_glide != is_gliding:
 		is_gliding = should_glide
 		_set_glide_visual.rpc(is_gliding)
+
+	# Boulder Dash: durante o mini pulinho a bola cresce de dentro do player (0 -> tamanho
+	# mínimo), terminando de crescer exatamente no pico, onde ela de fato assume o controle.
+	if _is_boulder_dash_launching:
+		var launch_progress = clamp(1.0 - (velocity.y / _boulder_launch_initial_vy), 0.0, 1.0)
+		boulder_mesh.scale = Vector3.ONE * (BOULDER_START_SCALE * launch_progress)
+
+		if velocity.y <= 0.0:
+			_is_boulder_dash_launching = false
+			_start_boulder_dash()
 
 	# Duplo pulo (Air): recarrega ao tocar o chão
 	if is_air and is_on_floor():
@@ -510,6 +605,9 @@ func _physics_process(delta: float) -> void:
 		add_camera_shake(LANDING_SHAKE_TRAUMA)
 		Global.spawn_earth_leap_decal.rpc_id(1, global_position)
 
+	# Animações de pulo (Jump_Charge, Jump_Ascend, Jump_Descend)
+	_update_jump_animation()
+
 
 func _apply_boulder_movement(direction: Vector3, current_speed: float, delta: float) -> void:
 	# Sem input, o boulder continua rolando pra onde a câmera olha (nunca fica parado).
@@ -534,8 +632,12 @@ func _update_model_facing(direction: Vector3, delta: float) -> void:
 		return
 
 	var target_basis = Transform3D().looking_at(direction, Vector3.UP).basis
-	# O rig do Mannequin encara o eixo oposto ao padrão do Godot (-Z), então compensa 180°
-	target_basis = target_basis.rotated(Vector3.UP, PI)
+	# Cada rig foi modelado encarando um eixo diferente (o Mannequin encara +Z, por isso o
+	# flip de 180°; o Golem encara -Y no Blender — convenção diferente, ver memory
+	# golem-rig-source). Por isso o flip é por export em vez de fixo, pra dar pra ajustar
+	# sem mexer em código se ele ficar andando de costas/de lado.
+	var flip_degrees = GOLEM_FACING_FLIP_DEGREES if player_mesh == golem_mesh else MANNEQUIN_FACING_FLIP_DEGREES
+	target_basis = target_basis.rotated(Vector3.UP, deg_to_rad(flip_degrees))
 	var current_quat = player_mesh.global_transform.basis.get_rotation_quaternion()
 	var target_quat = target_basis.get_rotation_quaternion()
 	var new_quat = current_quat.slerp(target_quat, clamp(MODEL_TURN_RATE * delta, 0.0, 1.0))
@@ -543,6 +645,131 @@ func _update_model_facing(direction: Vector3, delta: float) -> void:
 	var gt = player_mesh.global_transform
 	gt.basis = Basis(new_quat)
 	player_mesh.global_transform = gt
+
+
+func _find_skeleton(node: Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node
+	for child in node.get_children():
+		var found = _find_skeleton(child)
+		if found:
+			return found
+	return null
+
+
+func _find_animation_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node
+	for child in node.get_children():
+		var found = _find_animation_player(child)
+		if found:
+			return found
+	return null
+
+
+# Junta os MeshInstance3D das folhas/musgo do golem (nomes "Leaves_*"/"Moss_*" no rig
+# Blender). São as únicas malhas com o shape key "Wilt" (encolhe e some), animado só
+# dentro do clipe "Roll" — ver _reset_golem_foliage.
+func _find_golem_foliage_meshes(node: Node, out_list: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D and (node.name.begins_with("Leaves_") or node.name.begins_with("Moss_")):
+		out_list.append(node)
+	for child in node.get_children():
+		_find_golem_foliage_meshes(child, out_list)
+
+
+# Garante "o musgo/folhas aparecer é o padrão, só some durante o Roll": o AnimationPlayer
+# do Godot NÃO reseta shape keys que a próxima animação não anima, então se o Roll for
+# interrompido (Boulder Dash cancelado, ou o próprio dash concluindo e trocando pra outra
+# animação no meio do clipe) o Wilt fica travado em "encolhido". Chamado toda vez que uma
+# animação que NÃO é Roll começa a tocar, então nenhuma sequência de interrupção consegue
+# deixar a folhagem sumida.
+@rpc("any_peer", "call_local")
+func _reset_golem_foliage() -> void:
+	for mesh in _golem_foliage_meshes:
+		if not is_instance_valid(mesh):
+			continue
+		var idx = mesh.find_blend_shape_by_name("Wilt")
+		if idx != -1:
+			mesh.set_blend_shape_value(idx, 0.0)
+
+
+# Tenta os nomes exatos do rig UE Mannequin primeiro; se não bater (case diferente, prefixo
+# tipo "mixamorig:", etc.) cai pra uma busca por qualquer osso contendo "spine", pegando
+# o de nome "maior" (spine_03 > spine_02 > spine_01 em ordem alfabética) como aproximação
+# do osso mais alto da cadeia (mais perto do peito/ombros).
+func _find_torso_bone(skel: Skeleton3D) -> int:
+	for bone_name in ["spine_03", "spine_02", "spine_01"]:
+		var idx = skel.find_bone(bone_name)
+		if idx != -1:
+			return idx
+
+	var best_idx = -1
+	var best_name = ""
+	for i in range(skel.get_bone_count()):
+		var bone_name = skel.get_bone_name(i)
+		if bone_name.to_lower().contains("spine") and bone_name > best_name:
+			best_name = bone_name
+			best_idx = i
+
+	return best_idx
+
+
+# AnimationPlayer está em modo MANUAL: quem avança a animação é a gente, aqui, sempre seguido
+# IMEDIATAMENTE (mesma função, síncrono) do twist do torso — garante ordem sem depender de
+# timing implícito do engine, o que era a causa raiz de só virar no fim da animação.
+func _advance_animation_and_torso() -> void:
+	var delta = get_process_delta_time()
+
+	if is_instance_valid(mannequin_animation_player):
+		mannequin_animation_player.advance(delta)
+
+	_update_torso_twist(delta)
+
+
+func _update_torso_twist(delta: float) -> void:
+	if not is_instance_valid(_skeleton) or _torso_bone_idx == -1:
+		return
+
+	# O rig do Mannequin encara +Z (é por isso que _update_model_facing faz o
+	# .rotated(Vector3.UP, PI)), então a frente VISUAL do modelo é +basis.z.
+	var model_forward = player_mesh.global_transform.basis.z
+	var camera_forward = -global_transform.basis.z
+	model_forward = Vector3(model_forward.x, 0.0, model_forward.z)
+	camera_forward = Vector3(camera_forward.x, 0.0, camera_forward.z)
+	if model_forward.length_squared() < 0.001 or camera_forward.length_squared() < 0.001:
+		return
+
+	# Torso SEMPRE de costas pra câmera; pés livres (o Model segue o movimento por conta própria)
+	var target_yaw = clamp(
+		model_forward.normalized().signed_angle_to(camera_forward.normalized(), Vector3.UP),
+		deg_to_rad(-TORSO_YAW_MAX_DEGREES), deg_to_rad(TORSO_YAW_MAX_DEGREES)
+	)
+	_torso_twist_yaw = lerp_angle(_torso_twist_yaw, target_yaw, clamp(TORSO_TWIST_LERP_SPEED * delta, 0.0, 1.0))
+
+	# A pose de um osso vive no espaço do osso PAI, e nesse rig os eixos do osso não são os do
+	# mundo (no UE o X corre ao longo do osso). Então converte a rotação de mundo pro espaço do
+	# pai por conjugação — sem isso, girar em Vector3.UP torcia num eixo torto e deformava tudo.
+	var parent_world_q = _skeleton.global_transform.basis.get_rotation_quaternion()
+	var parent_idx = _skeleton.get_bone_parent(_torso_bone_idx)
+	if parent_idx != -1:
+		parent_world_q = parent_world_q * _skeleton.get_bone_global_pose(parent_idx).basis.get_rotation_quaternion()
+
+	var world_twist = Quaternion(Vector3.UP, _torso_twist_yaw)
+	var local_delta = parent_world_q.inverse() * world_twist * parent_world_q
+
+	# Como a gente controla o advance() manualmente logo acima, essa leitura É SEMPRE a pose
+	# fresca que a animação acabou de escrever nesse frame — nunca a nossa própria escrita de
+	# antes (isso só existia como risco quando a ordem entre animação e twist era implícita).
+	var animated_pose = _skeleton.get_bone_pose_rotation(_torso_bone_idx)
+	_skeleton.set_bone_pose_rotation(_torso_bone_idx, local_delta * animated_pose)
+
+	if TORSO_DEBUG:
+		_torso_debug_timer += delta
+		if _torso_debug_timer >= 0.5:
+			_torso_debug_timer = 0.0
+			print("[TorsoAim] alvo=%.1f° aplicado=%.1f° | osso=%s" % [
+				rad_to_deg(target_yaw), rad_to_deg(_torso_twist_yaw), _skeleton.get_bone_name(_torso_bone_idx)
+			])
 
 
 func _apply_boulder_roll(delta: float) -> void:
@@ -572,16 +799,28 @@ func _set_player_element(elem: int) -> void:
 func _apply_player_element(elem: int) -> void:
 	player_element = elem
 
-	var tint: Color
-	match elem:
-		ElementsEnum.Element.FIRE:
-			tint = Color(0.9, 0.2, 0.15)
-		ElementsEnum.Element.AIR:
-			tint = Color(0.92, 0.95, 0.98)
-		_:
-			tint = Color(0.45, 0.3, 0.15)  # EARTH
+	# GOLEM troca o modelo/rig visível inteiro pro golem de pedra (com suas próprias
+	# animações Walk/Sprint/Jump); os outros elementos usam o Mannequin de sempre.
+	var use_golem = elem == ElementsEnum.Element.GOLEM
+	mannequin_mesh.visible = not use_golem
+	golem_mesh.visible = use_golem
+	player_mesh = golem_mesh if use_golem else mannequin_mesh
+	animation_player = golem_animation_player if use_golem else mannequin_animation_player
+	_skeleton = _golem_skeleton if use_golem else _mannequin_skeleton
+	_torso_bone_idx = _golem_torso_bone_idx if use_golem else _mannequin_torso_bone_idx
 
-	_tint_model_recursive(player_mesh, tint)
+	# O golem já tem sua própria pedra/musgo pintados no material — não sobrescreve com a
+	# tinta de elemento (que é feita pro Mannequin genérico).
+	if not use_golem:
+		var tint: Color
+		match elem:
+			ElementsEnum.Element.FIRE:
+				tint = Color(0.9, 0.2, 0.15)
+			ElementsEnum.Element.AIR:
+				tint = Color(0.92, 0.95, 0.98)
+			_:
+				tint = Color(0.45, 0.3, 0.15)  # EARTH
+		_tint_model_recursive(player_mesh, tint)
 
 	# O texto de controles é só do próprio jogador (CanvasLayer já é escondido de todo mundo
 	# que não é a autoridade), então atualizar em todo mundo aqui não vaza nada.
@@ -594,8 +833,10 @@ func _update_controls_label(elem: int) -> void:
 			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo"
 		ElementsEnum.Element.AIR:
 			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
+		ElementsEnum.Element.GOLEM:
+			controls_label.text = "GOLEM\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
 		_:
-			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Rock Barrage\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
+			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
 
 
 func _tint_model_recursive(node: Node, tint: Color) -> void:
@@ -610,33 +851,18 @@ func _tint_model_recursive(node: Node, tint: Color) -> void:
 		_tint_model_recursive(child, tint)
 
 
-# LMB: 2 tiros rápidos por clique. Depois de 3 "waves" (6 tiros), o próximo clique
-# solta 1 pedra maior e recarrega.
+# LMB: soco corpo a corpo, sem projétil nenhum. Cada clique avança 1 hit do combo
+# (Jab -> Hook -> Uppercut -> Jab...).
 func _shoot_lmb() -> void:
 	lmb_busy = true
 
-	if lmb_wave_count < LMB_WAVES_BEFORE_BIG:
-		lmb_wave_count += 1
+	var combo_anim = LMB_COMBO_ANIMATIONS[lmb_wave_count % LMB_COMBO_ANIMATIONS.size()]
+	lmb_wave_count += 1
 
-		_play_animation.rpc("Punch_Jab")
-		Global.cast_ability.rpc_id(1, "rock_barrage_small", global_position, get_forward_direction())
-		await get_tree().create_timer(LMB_SHOT_INTERVAL).timeout
+	_play_animation.rpc(combo_anim)
+	await get_tree().create_timer(LMB_SHOT_INTERVAL).timeout
 
-		_play_animation.rpc("Punch_Cross")
-		Global.cast_ability.rpc_id(1, "rock_barrage_small", global_position, get_forward_direction())
-
-		lmb_busy = false
-	else:
-		lmb_wave_count = 0
-
-		_play_animation.rpc("Sword_Attack")
-		Global.cast_ability.rpc_id(1, "rock_barrage_big", global_position, get_forward_direction())
-		await get_tree().create_timer(0.3).timeout
-
-		_play_animation.rpc("Pistol_Reload")
-		await get_tree().create_timer(LMB_RELOAD_TIME).timeout
-
-		lmb_busy = false
+	lmb_busy = false
 
 
 # RMB: 2 projéteis grandes por clique, depois recarrega.
@@ -661,6 +887,7 @@ func _shoot_rmb() -> void:
 func _shoot_earth_spikes() -> void:
 	is_spiking = true
 
+	_play_animation.rpc("SmashGround")
 	for i in range(SPIKE_COUNT):
 		Global.cast_ability.rpc_id(1, "earth_spike", global_position, get_forward_direction(), float(i))
 		await get_tree().create_timer(SPIKE_INTERVAL).timeout
@@ -676,10 +903,48 @@ func _update_crouch(_delta: float) -> void:
 	collision_shape.position.y = target_height / 2.0
 
 
+func _update_jump_animation() -> void:
+	# Rastreia as fases do pulo e toca as animações corretas.
+	#
+	# IMPORTANTE: is_charging_leap tem que ser checado ANTES de is_on_floor() — o jogador fica
+	# TRAVADO NO CHÃO enquanto carrega o Earth Leap (is_on_floor() == true o tempo todo), então
+	# se o check de chão viesse primeiro ele sempre vencia e Jump_Charge nunca era alcançado.
+	#
+	# Um pulo comum (sem carregar Earth Leap) usa a MESMA Jump_Ascend/Jump_Descend daqui — não
+	# existe um recurso de animação "Jump_Up" separado no golem, só Jump_Ascend/Charge/Descend.
+	var anim_to_play = ""
+
+	if _is_boulder_dash_launching:
+		# Mini pulinho antes do Boulder Dash: toca o Roll em vez do Jump_Ascend normal
+		anim_to_play = "Roll"
+	elif is_charging_leap:
+		# Carregando pulo de Terra (chão ou não, não importa): toca animação de carga
+		anim_to_play = "Jump_Charge"
+	elif is_on_floor():
+		# No chão e não carregando: reseta o rastreamento
+		_is_in_jump_ascent = false
+		_last_jump_animation = ""
+	elif velocity.y > 0.01:
+		# No ar, subindo (pulo comum OU leap liberado — mesma animação pros dois): ascensão
+		anim_to_play = "Jump_Ascend"
+		_is_in_jump_ascent = true
+	elif _is_in_jump_ascent:
+		# No ar, descendo (só depois de ter subido antes): descida
+		anim_to_play = "Jump_Descend"
+
+	# Toca a animação apenas se mudou
+	if anim_to_play != "" and anim_to_play != _last_jump_animation:
+		_play_animation.rpc(anim_to_play)
+		_last_jump_animation = anim_to_play
+
+
 @rpc("any_peer", "call_local")
 func _play_animation(anim_name: String) -> void:
 	if animation_player and animation_player.has_animation(anim_name):
-		animation_player.play(anim_name, ANIM_BLEND_TIME)
+		if anim_name != "Roll":
+			_reset_golem_foliage()
+		var speed_scale = ROLL_ANIM_SPEED_MULTIPLIER if anim_name == "Roll" else 1.0
+		animation_player.play(anim_name, ANIM_BLEND_TIME, speed_scale)
 
 
 func get_forward_direction() -> Vector3:
@@ -730,6 +995,24 @@ func _add_cast_fov_kick() -> void:
 	cast_fov_kick = CAST_FOV_KICK_AMOUNT
 
 
+func _start_boulder_dash_launch() -> void:
+	_is_boulder_dash_launching = true
+	velocity.y += JUMP_VELOCITY / 3.0
+	_boulder_launch_initial_vy = velocity.y
+	boulder_mesh.scale = Vector3.ZERO
+	_set_boulder_growing.rpc(true)
+	_play_animation.rpc("Roll")
+
+
+@rpc("any_peer", "call_local")
+func _set_boulder_growing(active: bool) -> void:
+	# Deixa a boulder visível crescendo por dentro do player durante o Roll, antes do
+	# _set_boulder_visual esconder o player de vez no pico do pulinho.
+	boulder_mesh.visible = active
+	if active:
+		boulder_mesh.scale = Vector3.ZERO
+
+
 func _start_boulder_dash() -> void:
 	is_boulder = true
 	boulder_timer = 0.0
@@ -741,11 +1024,16 @@ func _start_boulder_dash() -> void:
 	_boulder_roll_dir = _get_horizontal_forward()
 	boulder_mesh.scale = Vector3.ONE * BOULDER_START_SCALE
 	_set_boulder_visual.rpc(true)
+	# O Roll do mini-pulinho quase sempre é cortado antes do fim (fica mais rápido, o clipe
+	# nem chega no frame em que as folhas voltam sozinhas) — reseta aqui, com o golem já
+	# escondido, pra não ter pop visual e a folhagem já estar normal quando ele reaparecer.
+	_reset_golem_foliage.rpc()
 
 
 func _end_boulder_dash() -> void:
 	is_boulder = false
 	_set_boulder_visual.rpc(false)
+	_reset_golem_foliage.rpc()  # segunda rede de segurança: cobre cancelar o dash ainda no mini-pulinho
 
 
 @rpc("any_peer", "call_local")
@@ -957,13 +1245,13 @@ func _apply_camera_shake(delta: float) -> void:
 	_shake_time += delta * 20.0
 
 	if amount <= 0.0:
-		camera_3d.rotation = Vector3.ZERO
+		camera_3d.rotation = _base_camera_rotation
 		return
 
 	var pitch_offset = SHAKE_MAX_OFFSET * amount * _shake_noise.get_noise_2d(_shake_time, 0.0)
 	var yaw_offset = SHAKE_MAX_OFFSET * amount * _shake_noise.get_noise_2d(_shake_time, 100.0)
 	var roll_offset = SHAKE_MAX_ROLL * amount * _shake_noise.get_noise_2d(_shake_time, 200.0)
-	camera_3d.rotation = Vector3(pitch_offset, yaw_offset, roll_offset)
+	camera_3d.rotation = _base_camera_rotation + Vector3(pitch_offset, yaw_offset, roll_offset)
 
 
 @rpc("any_peer", "call_local")
