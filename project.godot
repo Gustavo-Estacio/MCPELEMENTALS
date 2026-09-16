@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Network="*uid://wy3ovkd8ingn"
 Global="*uid://c3dabc82f0rq5"
+Settings="*res://Scripts/Core/settings.gd"
 ReactionDatabase="*res://Scripts/Core/reaction_database.gd"
 
 [display]
