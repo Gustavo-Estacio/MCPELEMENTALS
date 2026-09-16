@@ -106,11 +106,19 @@ const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 
 @onready var nameplate: Label3D = %Nameplate
 @onready var menu: Control = %Menu
-@onready var button_leave: Button = %ButtonLeave
+@onready var button_resume: Button = %ButtonResume
+@onready var button_pause_options: Button = %ButtonPauseOptions
+@onready var button_disconnect: Button = %ButtonDisconnect
+@onready var button_back_to_main_menu: Button = %ButtonBackToMainMenu
+@onready var button_quit_desktop: Button = %ButtonQuitDesktop
 @onready var button_fire: Button = %ButtonFire
 @onready var button_earth: Button = %ButtonEarth
 @onready var button_air: Button = %ButtonAir
 @onready var button_golem: Button = %ButtonGolem
+@onready var button_element_earth: Button = %ButtonElementEarth
+@onready var button_element_fire: Button = %ButtonElementFire
+@onready var button_element_air: Button = %ButtonElementAir
+
 @onready var controls_label: Label = %ControlsLabel
 @onready var label_session: Label = %LabelSession
 @onready var button_copy_session: Button = %ButtonCopySession
@@ -144,6 +152,7 @@ var _golem_skeleton: Skeleton3D
 var _golem_torso_bone_idx := -1
 
 var animation_fsm := PlayerAnimationFSM.new()
+var _pause_options_menu: OptionsMenu
 
 var player_element: int = ElementsEnum.Element.EARTH
 
@@ -281,13 +290,28 @@ func _ready():
 
 	label_session.text = Network.tube_client.session_id
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	button_leave.pressed.connect(func(): Network.leave_server())
+
+	button_resume.pressed.connect(_close_pause_menu)
+	button_pause_options.pressed.connect(_open_pause_options)
+	button_disconnect.pressed.connect(func(): Network.leave_server())
+	button_disconnect.disabled = not Network.is_networked
+	button_back_to_main_menu.pressed.connect(func(): Network.leave_server())
+	button_quit_desktop.pressed.connect(func(): get_tree().quit())
+
+	_pause_options_menu = OptionsMenu.new()
+	canvas_layer.add_child(_pause_options_menu)
+	_pause_options_menu.closed.connect(func(): menu.show())
+
 	button_copy_session.pressed.connect(func(): DisplayServer.clipboard_set(Network.tube_client.session_id))
 	DisplayServer.clipboard_set(Network.tube_client.session_id)
 	button_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
 	button_golem.pressed.connect(func(): _set_player_element(ElementsEnum.Element.GOLEM))
+
+	button_element_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
+	button_element_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
+	button_element_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
 
 	rock_sling_ability = RockSlingAbility.new()
 	fireball_ability = FireBallAbility.new()
@@ -299,6 +323,13 @@ func _ready():
 	camera_3d.current = true
 	base_fov = camera_3d.fov
 	_base_camera_rotation = camera_3d.rotation
+	base_fov = Settings.get_value("fov")
+	controls_label.visible = Settings.get_value("show_controls")
+	# Duplica o stylebox compartilhado do reticle, senão o modo alto contraste
+	# de um player mudaria o reticle de todo mundo
+	reticle.add_theme_stylebox_override("panel", reticle.get_theme_stylebox("panel").duplicate())
+	_apply_reticle_contrast(Settings.get_value("high_contrast_reticle"))
+	Settings.setting_changed.connect(_on_setting_changed)
 	trajectory_indicator.hide()
 	leap_indicator.hide()
 
@@ -311,8 +342,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseMotion:
-		yaw -= event.relative.x * mouse_sensitivity
-		pitch -= event.relative.y * mouse_sensitivity
+		var sensitivity: float = mouse_sensitivity * Settings.mouse_sensitivity_scale()
+		yaw -= event.relative.x * sensitivity
+		pitch -= event.relative.y * sensitivity * Settings.pitch_direction()
 		pitch = clamp(pitch, deg_to_rad(-80), deg_to_rad(80))
 		rotation.y = yaw
 		head.rotation.x = pitch
@@ -330,12 +362,12 @@ func _process(delta: float) -> void:
 	_apply_fov(delta)
 
 	if Input.is_action_just_pressed('menu'):
-		menu.visible = !menu.visible
-		immobile = menu.visible
-		if menu.visible:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		if _pause_options_menu.visible:
+			_pause_options_menu.close()
+		elif menu.visible:
+			_close_pause_menu()
 		else:
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			_open_pause_menu()
 
 	if immobile:
 		return
@@ -795,6 +827,24 @@ func _set_player_element(elem: int) -> void:
 	_apply_player_element.rpc(elem)
 
 
+func _open_pause_menu() -> void:
+	menu.show()
+	immobile = true
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+
+func _close_pause_menu() -> void:
+	menu.hide()
+	_pause_options_menu.hide()
+	immobile = false
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+func _open_pause_options() -> void:
+	menu.hide()
+	_pause_options_menu.open()
+
+
 @rpc("any_peer", "call_local")
 func _apply_player_element(elem: int) -> void:
 	player_element = elem
@@ -822,9 +872,21 @@ func _apply_player_element(elem: int) -> void:
 				tint = Color(0.45, 0.3, 0.15)  # EARTH
 		_tint_model_recursive(player_mesh, tint)
 
-	# O texto de controles é só do próprio jogador (CanvasLayer já é escondido de todo mundo
-	# que não é a autoridade), então atualizar em todo mundo aqui não vaza nada.
+	# O texto de controles e a hotbar são só do próprio jogador (CanvasLayer já é
+	# escondido de todo mundo que não é a autoridade), então atualizar em todo
+	# mundo aqui não vaza nada.
 	_update_controls_label(elem)
+	_update_element_bar(elem)
+
+
+func _update_element_bar(elem: int) -> void:
+	match elem:
+		ElementsEnum.Element.FIRE:
+			button_element_fire.button_pressed = true
+		ElementsEnum.Element.AIR:
+			button_element_air.button_pressed = true
+		_:
+			button_element_earth.button_pressed = true
 
 
 func _update_controls_label(elem: int) -> void:
@@ -1234,7 +1296,27 @@ func _show_trajectory_preview(spawn_pos: Vector3, launch_velocity: Vector3) -> v
 
 
 func add_camera_shake(amount: float) -> void:
-	shake_trauma = min(shake_trauma + amount, 1.0)
+	shake_trauma = min(shake_trauma + amount * Settings.camera_shake_scale(), 1.0)
+
+
+func _apply_reticle_contrast(enabled: bool) -> void:
+	var style: StyleBoxFlat = reticle.get_theme_stylebox("panel")
+	if enabled:
+		style.bg_color = Color.BLACK
+		style.border_color = Color.WHITE
+		style.set_border_width_all(2)
+	else:
+		style.bg_color = Color.WHITE
+		style.set_border_width_all(0)
+
+
+func _on_setting_changed(key: String, value: Variant) -> void:
+	if key == "fov":
+		base_fov = value
+	elif key == "show_controls":
+		controls_label.visible = value
+	elif key == "high_contrast_reticle":
+		_apply_reticle_contrast(value)
 
 
 func _apply_camera_shake(delta: float) -> void:

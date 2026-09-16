@@ -74,6 +74,8 @@ properties/6/path = NodePath("GolemModel:rotation")
 properties/6/spawn = false
 properties/6/replication_mode = 1
 
+[sub_resource type="ButtonGroup" id="ButtonGroup_elembar"]
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ft8w5"]
 bg_color = Color(1, 1, 1, 1)
 corner_radius_top_left = 5
@@ -172,6 +174,40 @@ theme_override_constants/margin_bottom = 20
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/Menu/PanelContainer/MarginContainer" unique_id=1134505171]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LabelPause" type="Label" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=432607698]
+layout_mode = 2
+horizontal_alignment = 1
+text = "Paused"
+
+[node name="ButtonResume" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556962]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Resume"
+
+[node name="ButtonPauseOptions" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556963]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Options"
+
+[node name="ButtonDisconnect" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556964]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Disconnect"
+
+[node name="ButtonBackToMainMenu" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556965]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back to Main Menu"
+
+[node name="ButtonQuitDesktop" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556966]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Quit to Desktop"
+
+[node name="HSeparatorPause" type="HSeparator" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=1520672710]
+layout_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=140479535]
 layout_mode = 2
@@ -186,12 +222,6 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/icon_max_width = 24
 icon = ExtResource("2_kpjcp")
-
-[node name="ButtonLeave" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=733556961]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Leave Game
-"
 
 [node name="LabelElement" type="Label" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer" unique_id=432607697]
 layout_mode = 2
@@ -259,6 +289,58 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 16
 text = "EARTH"
 vertical_alignment = 2
+
+[node name="ElementBar" type="HBoxContainer" parent="CanvasLayer" unique_id=1497727312]
+unique_name_in_owner = true
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -105.0
+offset_top = -84.0
+offset_right = 105.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 6
+
+[node name="ButtonElementEarth" type="Button" parent="CanvasLayer/ElementBar" unique_id=1497727313]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_elembar")
+theme_override_colors/font_color = Color(0.55, 0.35, 0.15, 1)
+theme_override_colors/font_pressed_color = Color(0.75, 0.5, 0.25, 1)
+theme_override_font_sizes/font_size = 14
+text = "1
+Earth"
+
+[node name="ButtonElementFire" type="Button" parent="CanvasLayer/ElementBar" unique_id=1497727314]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_elembar")
+theme_override_colors/font_color = Color(0.75, 0.2, 0.1, 1)
+theme_override_colors/font_pressed_color = Color(1.0, 0.45, 0.2, 1)
+theme_override_font_sizes/font_size = 14
+text = "2
+Fire"
+
+[node name="ButtonElementAir" type="Button" parent="CanvasLayer/ElementBar" unique_id=1497727315]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_elembar")
+theme_override_colors/font_color = Color(0.6, 0.75, 0.85, 1)
+theme_override_colors/font_pressed_color = Color(0.85, 0.95, 1.0, 1)
+theme_override_font_sizes/font_size = 14
+text = "3
+Air"
 
 [node name="HitMarker" type="Label" parent="CanvasLayer" unique_id=1551205812]
 unique_name_in_owner = true
