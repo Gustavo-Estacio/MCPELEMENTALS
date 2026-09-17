@@ -246,6 +246,8 @@ var _skill_hud: SkillHUD
 var stats := PlayerStats.new()
 var _stats_panel: StatsPanel
 var _spell_slot_bar: SpellSlotBar
+var _health_bar: HealthBar
+var current_health := 0.0
 var _tab_held := false
 
 # TAB: troca a ordem das spells Q/E ao arrastar um slot em cima do outro na
@@ -477,6 +479,15 @@ func _ready():
 	canvas_layer.add_child(_stats_panel)
 	_stats_panel.setup(stats)
 
+	current_health = stats.get_stat("health")
+	_health_bar = HealthBar.new()
+	canvas_layer.add_child(_health_bar)
+	_health_bar.setup(current_health, stats.get_stat("health"))
+	stats.stat_changed.connect(func(key: String, value: float):
+		if key == "health" and is_instance_valid(_health_bar):
+			_health_bar.set_max_health(value)
+	)
+
 	_spell_slot_bar = SpellSlotBar.new()
 	_spell_slot_bar.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_spell_slot_bar.offset_left = -170.0
@@ -662,7 +673,9 @@ func _process(delta: float) -> void:
 	if is_water and Input.is_action_just_pressed('jump'):
 		if is_water_bubble:
 			_end_water_bubble()
-		elif not is_on_floor() and not is_water_linked:
+		elif is_water_linked:
+			_end_water_link()
+		elif not is_on_floor():
 			_activate_water_space_ability()
 
 	if Input.is_action_just_released('jump') and is_charging_leap:
@@ -1384,12 +1397,16 @@ func get_forward_direction() -> Vector3:
 func take_damage(_amount = 0, _source_peer_id: int = -1, element: int = -1) -> void:
 	# Chamado diretamente pelo servidor (autoridade do projétil), então não dá
 	# pra confiar em is_multiplayer_authority() aqui — precisa de RPC pro dono real ver o efeito
-	_apply_damage_effects.rpc_id(int(name), element)
+	_apply_damage_effects.rpc_id(int(name), int(_amount), element)
 
 
 @rpc("any_peer", "call_local")
-func _apply_damage_effects(element: int) -> void:
+func _apply_damage_effects(amount: int, element: int) -> void:
 	_enter_combat()
+
+	current_health = clamp(current_health - amount, 0.0, stats.get_stat("health"))
+	if is_instance_valid(_health_bar):
+		_health_bar.set_health(current_health)
 
 	if is_boulder and boulder_infused_with == -1 and element == ElementsEnum.Element.FIRE:
 		ignite_boulder.rpc()

@@ -17,10 +17,10 @@ func _ready() -> void:
 
 
 func spawn_target():
-	if is_multiplayer_authority() and get_tree().get_node_count_in_group('Targets') < 10:
+	if is_multiplayer_authority() and get_tree().get_node_count_in_group('Targets') < 16:
 		var new_target = TARGET.instantiate()
-		var rand_x = randf_range(-15.0, 15.0)
-		var rand_z = randf_range(-15.0, 15.0)
+		var rand_x = randf_range(-40.0, 40.0)
+		var rand_z = randf_range(-40.0, 40.0)
 
 		new_target.position = Vector3(rand_x, 1, rand_z)
 		spawn_container.add_child(new_target, true)
@@ -39,13 +39,13 @@ func toggle_enemy_spawn() -> void:
 
 
 func spawn_enemy():
-	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= 10:
+	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= 18:
 		return
 
 	var enemy_scene = RANGED_ENEMY if randf() < 0.5 else MELEE_ENEMY
 	var new_enemy = enemy_scene.instantiate()
-	var rand_x = randf_range(-15.0, 15.0)
-	var rand_z = randf_range(-15.0, 15.0)
+	var rand_x = randf_range(-40.0, 40.0)
+	var rand_z = randf_range(-40.0, 40.0)
 
 	new_enemy.position = Vector3(rand_x, 1, rand_z)
 	spawn_container.add_child(new_enemy, true)
