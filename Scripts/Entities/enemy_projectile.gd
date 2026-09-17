@@ -1,5 +1,7 @@
 extends RigidBody3D
 
+var is_moveable := true  # habilidades físicas que o Wind Torrent do Air consegue empurrar/redirecionar
+
 @onready var area_3d: Area3D = $Area3D
 @onready var lifetime: Timer = $Lifetime
 
