@@ -154,6 +154,17 @@ var _golem_torso_bone_idx := -1
 var animation_fsm := PlayerAnimationFSM.new()
 var _pause_options_menu: OptionsMenu
 
+# Stats (vida, dano, área, etc.) — ver Scripts/Core/player_stats.gd. Por enquanto
+# só são exibidos no painel ao segurar TAB, ainda não afetam dano/movimento/etc.
+var stats := PlayerStats.new()
+var _stats_panel: StatsPanel
+var _spell_slot_bar: SpellSlotBar
+var _tab_held := false
+
+# TAB: troca a ordem das spells Q/E ao arrastar um slot em cima do outro na
+# SpellSlotBar. Isso NÃO muda o keybind físico, só qual spell cada tecla conjura.
+var spell_slots_swapped := false
+
 var player_element: int = ElementsEnum.Element.EARTH
 
 var immobile := false
@@ -336,12 +347,25 @@ func _ready():
 	_shake_noise.seed = randi()
 	_shake_noise.frequency = 3.0
 
+	_stats_panel = StatsPanel.new()
+	canvas_layer.add_child(_stats_panel)
+	_stats_panel.setup(stats)
+
+	_spell_slot_bar = SpellSlotBar.new()
+	_spell_slot_bar.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_spell_slot_bar.offset_left = -170.0
+	_spell_slot_bar.offset_top = -100.0
+	_spell_slot_bar.offset_right = -20.0
+	_spell_slot_bar.offset_bottom = -20.0
+	canvas_layer.add_child(_spell_slot_bar)
+	_spell_slot_bar.setup(self)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
 		return
 
-	if event is InputEventMouseMotion:
+	if event is InputEventMouseMotion and not _tab_held:
 		var sensitivity: float = mouse_sensitivity * Settings.mouse_sensitivity_scale()
 		yaw -= event.relative.x * sensitivity
 		pitch -= event.relative.y * sensitivity * Settings.pitch_direction()
@@ -369,6 +393,20 @@ func _process(delta: float) -> void:
 		else:
 			_open_pause_menu()
 
+	# TAB: libera o mouse pra arrastar as spells Q/E entre os slots e mostra o
+	# painel de stats à direita, enquanto segurado. Some/recaptura o mouse ao soltar.
+	if not menu.visible and not _pause_options_menu.visible:
+		if Input.is_action_just_pressed('hud_overlay'):
+			_tab_held = true
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+			_stats_panel.show()
+			_spell_slot_bar.show()
+		elif Input.is_action_just_released('hud_overlay'):
+			_tab_held = false
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			_stats_panel.hide()
+			_spell_slot_bar.hide()
+
 	if immobile:
 		return
 
@@ -389,20 +427,20 @@ func _process(delta: float) -> void:
 	var is_air = player_element == ElementsEnum.Element.AIR
 
 	# Q: Earth = rock sling (carrega e solta) / Fire = flamethrower (canaliza enquanto segura)
-	if is_earth and Input.is_action_just_pressed('skill_q') and not is_charging_leap and not is_boulder:
+	if is_earth and Input.is_action_just_pressed(_q_action()) and not is_charging_leap and not is_boulder:
 		rock_sling_ability.start_charge()
 		is_charging_q = true
 
-	if is_earth and Input.is_action_just_released('skill_q') and is_charging_q:
+	if is_earth and Input.is_action_just_released(_q_action()) and is_charging_q:
 		var charge = rock_sling_ability.get_charge_power()
 		Global.cast_ability.rpc_id(1, "rock_sling", global_position, get_forward_direction(), charge)
 		is_charging_q = false
 		add_camera_shake(SHAKE_CAST_TRAUMA)
 
-	if is_fire and Input.is_action_just_pressed('skill_q') and not is_flamethrowing:
+	if is_fire and Input.is_action_just_pressed(_q_action()) and not is_flamethrowing:
 		_channel_flamethrower()
 
-	if is_air and Input.is_action_just_pressed('skill_q'):
+	if is_air and Input.is_action_just_pressed(_q_action()):
 		Global.cast_ability.rpc_id(1, "wind_torrent", global_position, get_forward_direction())
 		_add_cast_fov_kick()
 
@@ -433,13 +471,13 @@ func _process(delta: float) -> void:
 		Global.cast_ability.rpc_id(1, "slash_of_air", global_position, get_forward_direction())
 
 	# E: Earth = fileira de espinhos / Fire = explosão em área (fire blast) / Air = tornado em zigue-zague
-	if is_earth and Input.is_action_just_pressed('skill_e') and not is_boulder and not is_spiking:
+	if is_earth and Input.is_action_just_pressed(_e_action()) and not is_boulder and not is_spiking:
 		_shoot_earth_spikes()
 
-	if is_fire and Input.is_action_just_pressed('skill_e') and not fire_blast_busy:
+	if is_fire and Input.is_action_just_pressed(_e_action()) and not fire_blast_busy:
 		_shoot_blast()
 
-	if is_air and Input.is_action_just_pressed('skill_e'):
+	if is_air and Input.is_action_just_pressed(_e_action()):
 		Global.cast_ability.rpc_id(1, "tornado", global_position, get_forward_direction())
 		_add_cast_fov_kick()
 
@@ -827,6 +865,40 @@ func _set_player_element(elem: int) -> void:
 	_apply_player_element.rpc(elem)
 
 
+# Ação real que dispara a spell "Q"/"E". Fora do drag-and-drop, Q sempre dispara
+# 'skill_q' e E sempre dispara 'skill_e'; depois de trocar os slots, cada tecla
+# passa a disparar a ação da outra.
+func _q_action() -> StringName:
+	return &"skill_e" if spell_slots_swapped else &"skill_q"
+
+
+func _e_action() -> StringName:
+	return &"skill_q" if spell_slots_swapped else &"skill_e"
+
+
+func toggle_spell_slots() -> void:
+	spell_slots_swapped = not spell_slots_swapped
+
+
+# Nome curto da spell que está no slot "q" ou "e" no momento (considerando a troca),
+# pra exibir na SpellSlotBar.
+func get_ability_name_for_key(key: String) -> String:
+	var action := _q_action() if key == "q" else _e_action()
+	var is_earth = player_element == ElementsEnum.Element.EARTH or player_element == ElementsEnum.Element.GOLEM
+	var is_fire = player_element == ElementsEnum.Element.FIRE
+	if action == &"skill_q":
+		if is_earth:
+			return "Rock Sling"
+		if is_fire:
+			return "Flamethrower"
+		return "Wind Torrent"
+	if is_earth:
+		return "Earth Spikes"
+	if is_fire:
+		return "Fire Blast"
+	return "Tornado"
+
+
 func _open_pause_menu() -> void:
 	menu.show()
 	immobile = true
@@ -890,15 +962,17 @@ func _update_element_bar(elem: int) -> void:
 
 
 func _update_controls_label(elem: int) -> void:
+	if is_instance_valid(_spell_slot_bar):
+		_spell_slot_bar.refresh()
 	match elem:
 		ElementsEnum.Element.FIRE:
-			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo"
+			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo\nTAB: Stats / trocar Q-E\nESC: Menu"
 		ElementsEnum.Element.AIR:
-			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
+			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)\nTAB: Stats / trocar Q-E\nESC: Menu"
 		ElementsEnum.Element.GOLEM:
-			controls_label.text = "GOLEM\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
+			controls_label.text = "GOLEM\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)\nTAB: Stats / trocar Q-E\nESC: Menu"
 		_:
-			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
+			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)\nTAB: Stats / trocar Q-E\nESC: Menu"
 
 
 func _tint_model_recursive(node: Node, tint: Color) -> void:
@@ -1137,7 +1211,7 @@ func _channel_flamethrower() -> void:
 	is_flamethrowing = true
 	var elapsed := 0.0
 
-	while elapsed < FLAMETHROWER_DURATION and Input.is_action_pressed('skill_q') and player_element == ElementsEnum.Element.FIRE:
+	while elapsed < FLAMETHROWER_DURATION and Input.is_action_pressed(_q_action()) and player_element == ElementsEnum.Element.FIRE:
 		Global.cast_ability.rpc_id(1, "flame_tick", global_position, get_forward_direction())
 		await get_tree().create_timer(FLAMETHROWER_TICK_INTERVAL).timeout
 		elapsed += FLAMETHROWER_TICK_INTERVAL
