@@ -17,6 +17,7 @@ const ELEMENT_COLORS := {
 	ElementsEnum.Element.EARTH: Color(0.78, 0.55, 0.28),
 	ElementsEnum.Element.FIRE: Color(1.0, 0.45, 0.2),
 	ElementsEnum.Element.AIR: Color(0.7, 0.88, 1.0),
+	ElementsEnum.Element.WATER: Color(0.35, 0.75, 1.0),
 }
 
 var _player: Player

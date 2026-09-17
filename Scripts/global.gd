@@ -172,6 +172,56 @@ func cast_ability(ability_type: String, pos: Vector3, dir: Vector3, charge_power
 			var aim_dir = dir.normalized() if dir.length() > 0.001 else Vector3.FORWARD
 			torrent.setup(pos + Vector3(0, 1.2, 0) + aim_dir * 0.8, aim_dir)
 
+		"water_pellet":
+			var pellet_scene = preload("res://Scenes/Effects/water_pellet.tscn")
+			var pellet = pellet_scene.instantiate()
+
+			spawn_container.add_child(pellet, true)
+
+			pellet.owner_peer_id = multiplayer.get_remote_sender_id()
+			pellet.element = ElementsEnum.Element.WATER
+			pellet.tag = "projectile"
+
+			var horizontal_dir = Vector3(dir.x, 0, dir.z)
+			horizontal_dir = horizontal_dir.normalized() if horizontal_dir.length() > 0.001 else Vector3.FORWARD
+
+			var jitter = Vector3(randf_range(-0.25, 0.25), randf_range(-0.15, 0.2), randf_range(-0.25, 0.25))
+			pellet.global_position = pos + Vector3(0, 1.6, 0) + horizontal_dir * 1.6 + jitter
+
+			var pellet_velocity = dir * 30.0
+			pellet_velocity.y += 1.5
+			pellet.linear_velocity = pellet_velocity
+
+		"jet_stream":
+			var jet_scene = preload("res://Scenes/Effects/jet_stream.tscn")
+			var jet = jet_scene.instantiate()
+
+			spawn_container.add_child(jet, true)
+			jet.owner_peer_id = multiplayer.get_remote_sender_id()
+
+			var aim_dir = dir.normalized() if dir.length() > 0.001 else Vector3.FORWARD
+			jet.setup(pos + Vector3(0, 1.4, 0) + aim_dir * 1.0, aim_dir)
+
+		"puddle_punch":
+			# "dir" aqui é reaproveitado como a normal da superfície mirada (ver Player._release_puddle_punch)
+			_puddle_punch(pos, dir)
+
+		"water_bomb":
+			var bomb_scene = preload("res://Scenes/Effects/water_bomb.tscn")
+			var bomb = bomb_scene.instantiate()
+
+			spawn_container.add_child(bomb, true)
+			bomb.owner_peer_id = multiplayer.get_remote_sender_id()
+
+			var horizontal_dir = Vector3(dir.x, 0, dir.z)
+			horizontal_dir = horizontal_dir.normalized() if horizontal_dir.length() > 0.001 else Vector3.FORWARD
+
+			bomb.global_position = pos + Vector3(0, 1.6, 0) + horizontal_dir * 1.5
+
+			var bomb_velocity = dir * 16.0
+			bomb_velocity.y += 9.0
+			bomb.linear_velocity = bomb_velocity
+
 		"air_dash_burst":
 			var wind_particles = preload("res://Scenes/Effects/wind_particles.tscn")
 			var particles_instance = wind_particles.instantiate()
@@ -265,6 +315,45 @@ func _fire_aoe(pos: Vector3, dir: Vector3, distance: float, radius: float, damag
 			if is_instance_valid(particles_instance):
 				particles_instance.queue_free()
 		)
+
+
+# Water Q: spawna a poça no ponto mirado (já validado e limitado em alcance pelo
+# Player, ver PUDDLE_PUNCH_RANGE), orientada pela normal da superfície — copia o
+# mesmo truque do decal do rock_sling (Basis(Quaternion(UP, normal))).
+func _puddle_punch(pos: Vector3, normal: Vector3) -> void:
+	var puddle_scene = preload("res://Scenes/Effects/puddle_punch.tscn")
+	var puddle = puddle_scene.instantiate()
+
+	var up = normal.normalized() if normal.length() > 0.01 else Vector3.UP
+	var puddle_basis = Basis(Quaternion(Vector3.UP, up))
+	puddle.transform = Transform3D(puddle_basis, pos + up * 0.03)
+	puddle.owner_peer_id = multiplayer.get_remote_sender_id()
+
+	spawn_container.add_child(puddle, true)
+
+
+# Water Shift: poça deixada no rastro do dash (ver Player._physics_process, is_water_dashing).
+@rpc("any_peer", "call_local")
+func spawn_water_puddle(pos: Vector3) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var decal_scene = preload("res://Scenes/Effects/water_puddle.tscn")
+	var decal = decal_scene.instantiate()
+	decal.position = pos
+	spawn_container.add_child(decal, true)
+
+
+# Water E: chamada pelo WaterBomb ao pousar — chove no local do impacto por alguns segundos.
+@rpc("any_peer", "call_local")
+func spawn_rain_zone(pos: Vector3) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var rain_scene = preload("res://Scenes/Effects/rain_zone.tscn")
+	var rain = rain_scene.instantiate()
+	rain.position = pos
+	spawn_container.add_child(rain, true)
 
 
 # Pedra de terra não-carregável (sem hold), usada pelo LMB/RMB. Nunca é ignitável.

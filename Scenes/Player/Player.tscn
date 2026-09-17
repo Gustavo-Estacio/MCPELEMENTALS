@@ -246,6 +246,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Air"
 
+[node name="ButtonWater" type="Button" parent="CanvasLayer/Menu/PanelContainer/MarginContainer/VBoxContainer/HBoxContainerElement" unique_id=800846067]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Water"
+
 [node name="Reticle" type="Panel" parent="CanvasLayer" unique_id=1682414558]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(5, 5)
@@ -282,9 +288,9 @@ unique_name_in_owner = true
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -105.0
+offset_left = -137.0
 offset_top = 16.0
-offset_right = 105.0
+offset_right = 137.0
 offset_bottom = 84.0
 grow_horizontal = 2
 theme_override_constants/separation = 6
@@ -325,6 +331,18 @@ toggle_mode = true
 button_group = SubResource("ButtonGroup_elembar")
 text = "3
 Air"
+
+[node name="ButtonElementWater" type="Button" parent="CanvasLayer/ElementBar" unique_id=1497727316]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 0.45, 0.85, 1)
+theme_override_colors/font_pressed_color = Color(0.45, 0.75, 1, 1)
+theme_override_font_sizes/font_size = 14
+toggle_mode = true
+button_group = SubResource("ButtonGroup_elembar")
+text = "4
+Water"
 
 [node name="HitMarker" type="Label" parent="CanvasLayer" unique_id=1551205812]
 unique_name_in_owner = true
