@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://c8k2p9wr4mfvt"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/rain_zone.gd" id="1_rain_zone"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_rain"]
+emission_shape = 3
+emission_box_extents = Vector3(3.0, 0.05, 3.0)
+direction = Vector3(0, -1, 0)
+spread = 2.0
+gravity = Vector3(0, -14, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 3.0
+scale_min = 0.6
+scale_max = 1.0
+color = Color(0.55, 0.8, 1, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rain"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(0.6, 0.82, 1, 0.5)
+emission_enabled = true
+emission = Color(0.6, 0.85, 1, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_rain"]
+material = SubResource("StandardMaterial3D_rain")
+size = Vector3(0.03, 0.4, 0.03)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_splash"]
+emission_shape = 1
+emission_sphere_radius = 2.5
+direction = Vector3(0, 1, 0)
+spread = 45.0
+initial_velocity_min = 2.0
+initial_velocity_max = 5.0
+gravity = Vector3(0, -9.0, 0)
+scale_min = 0.2
+scale_max = 0.5
+color = Color(0.4, 0.7, 1, 0.85)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_splash"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(0.4, 0.75, 1, 0.8)
+emission_enabled = true
+emission = Color(0.5, 0.8, 1, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="SphereMesh" id="SphereMesh_splash"]
+material = SubResource("StandardMaterial3D_splash")
+radius = 0.12
+height = 0.24
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_rain"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+
+[node name="RainZone" type="Node3D"]
+script = ExtResource("1_rain_zone")
+
+[node name="RainParticles" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.0, 0)
+emitting = false
+amount = 150
+lifetime = 1.2
+speed_scale = 1.4
+process_material = SubResource("ParticleProcessMaterial_rain")
+draw_pass_1 = SubResource("BoxMesh_rain")
+
+[node name="SplashParticles" type="GPUParticles3D" parent="."]
+one_shot = true
+amount = 60
+lifetime = 1.0
+speed_scale = 1.5
+process_material = SubResource("ParticleProcessMaterial_splash")
+draw_pass_1 = SubResource("SphereMesh_splash")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_rain")
