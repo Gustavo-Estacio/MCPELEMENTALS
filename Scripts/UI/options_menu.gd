@@ -101,12 +101,29 @@ func _build_category(category: String) -> Control:
 	scroll.add_child(list)
 
 	for entry in Settings.SCHEMA[category]:
-		if entry["type"] == "keybinds":
-			list.add_child(_build_keybinds_section(entry))
-		else:
-			list.add_child(_build_row(entry))
+		match entry["type"]:
+			"keybinds":
+				list.add_child(_build_keybinds_section(entry))
+			"header":
+				list.add_child(_build_header(entry))
+			_:
+				list.add_child(_build_row(entry))
 
 	return scroll
+
+
+## Título de grupo, usado pra separar os efeitos na aba DEV.
+func _build_header(entry: Dictionary) -> Control:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 4)
+	section.add_child(HSeparator.new())
+
+	var title := Label.new()
+	title.text = entry["label"]
+	title.add_theme_font_size_override("font_size", 18)
+	section.add_child(title)
+
+	return section
 
 
 func _build_row(entry: Dictionary) -> Control:
@@ -310,7 +327,10 @@ func _format_value(entry: Dictionary, value: float) -> String:
 	if entry.is_empty():
 		return str(value)
 	var suffix: String = entry.get("suffix", "")
-	if entry.get("step", 1.0) < 1.0:
+	var step: float = entry.get("step", 1.0)
+	if step < 0.1:
+		return "%.2f%s" % [value, suffix]
+	if step < 1.0:
 		return "%.1f%s" % [value, suffix]
 	if entry.get("key", "") == "max_fps" and is_zero_approx(value):
 		return "Off"

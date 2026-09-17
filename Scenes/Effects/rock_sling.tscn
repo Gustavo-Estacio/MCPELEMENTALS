@@ -1,19 +1,10 @@
 [gd_scene format=3 uid="uid://b5f2hddxtfdav"]
 
 [ext_resource type="Script" uid="uid://dd6uluko1u128" path="res://Scripts/Entities/rock_sling.gd" id="1_abc12"]
-[ext_resource type="Texture2D" uid="uid://ytim4n1ldt3f" path="res://addons/kenney_prototype_textures/dark/texture_11.png" id="2_dark"]
+[ext_resource type="PackedScene" uid="uid://dgi5x857sehkj" path="res://Assets/Player/Golem/boulder_dash.glb" id="2_boulder"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rock"]
 radius = 0.25
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rock"]
-albedo_texture = ExtResource("2_dark")
-uv1_scale = Vector3(4, 4, 4)
-
-[sub_resource type="SphereMesh" id="SphereMesh_rock"]
-material = SubResource("StandardMaterial3D_rock")
-radius = 0.25
-height = 0.5
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_rock"]
 properties/0/path = NodePath(".:position")
@@ -42,8 +33,10 @@ script = ExtResource("1_abc12")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1254127664]
 shape = SubResource("SphereShape3D_rock")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=492416363]
-mesh = SubResource("SphereMesh_rock")
+[node name="Model" type="Node3D" parent="." unique_id=492416363]
+transform = Transform3D(0.125, 0, 0, 0, 0.125, 0, 0, 0, 0.125, 0, 0, 0)
+
+[node name="BoulderModel" parent="Model" instance=ExtResource("2_boulder")]
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1087351015]
 replication_config = SubResource("SceneReplicationConfig_rock")

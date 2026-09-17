@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://1noii3sxpab3"
-path.s3tc="res://.godot/imported/air_bird_2.png-b4a48adb7dde11623d3dcdc85152512c.s3tc.ctex"
+uid="uid://br46cmqa3n86j"
+path.s3tc="res://.godot/imported/air_bird_1.png-27fc51663ce146e9158c158fb256ffa5.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "a21e3d2a1bdfa24c9a7a102a80b9622f"
+"md5": "60bb74ff10e2901bf70339cfe62cb291"
 }
 
 [deps]
 
-source_file="res://Assets/Player/air_bird_2.png"
-dest_files=["res://.godot/imported/air_bird_2.png-b4a48adb7dde11623d3dcdc85152512c.s3tc.ctex"]
+source_file="res://Assets/Player/AirBird/air_bird_1.png"
+dest_files=["res://.godot/imported/air_bird_1.png-27fc51663ce146e9158c158fb256ffa5.s3tc.ctex"]
 
 [params]
 

@@ -1,7 +1,9 @@
-res://Scenes/Effects/explosion.tscn
 res://Scenes/Player/Player.tscn
-res://Scripts/Core/ElementsEnum.gd
-res://Scripts/Entities/explosion.gd
-res://Scripts/Network/network.gd
+res://addons/StatusFXFree/assets/BinbunVFX_Vol2/StatusFX/shader/bubble_particle.gdshader
 res://Scripts/Player/Player.gd
-res://Scripts/UI/main_menu.gd
+res://Scripts/Core/settings.gd
+res://Scripts/UI/options_menu.gd
+res://devfx_shader_test.gd
+res://Shaders/PostFX/depth_fx.gdshader
+res://Shaders/PostFX/toon.gdshader
+res://Scripts/Core/dev_fx.gd

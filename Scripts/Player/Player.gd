@@ -28,16 +28,24 @@ class_name Player
 @export var TRAJECTORY_TIME_STEP := 0.08
 
 @export_group("Boulder Dash (Earth Shift)")
-@export var BOULDER_DURATION := 6.0
-@export var BOULDER_MIN_SPEED_MULTIPLIER := 2.0  # velocidade logo ao ativar, antes de crescer/acelerar
-@export var BOULDER_SPEED_MULTIPLIER := 2.5
+@export var BOULDER_DURATION := 8.0
+@export var BOULDER_MIN_SPEED_MULTIPLIER := 2.0  # velocidade logo ao ativar, relativa à velocidade atual no momento do dash
+@export var BOULDER_SPEED_MULTIPLIER := 5.0  # velocidade no pico da rampa, relativa à velocidade atual no momento do dash
+@export var BOULDER_LAUNCH_BOOST_SPEED := 6.0  # empurrão extra pra frente, só no instante em que o dash começa
+@export var BOULDER_LAUNCH_BOOST_DURATION := 5.0  # segundos até o empurrão extra decair de volta a zero
+@export var BOULDER_BOUNCE_SPEED_LOSS := 0.1  # fração de velocidade perdida ao bater numa parede
+@export var BOULDER_BOUNCE_COOLDOWN := 0.3  # evita re-quicar várias vezes seguidas encostado na mesma parede
+@export var BOULDER_BOUNCE_TURN_RATE_MULTIPLIER := 0.5  # turn rate reduzido por um tempo após bater, pra facilitar corrigir a direção
+@export var BOULDER_BOUNCE_TURN_RATE_DURATION := 1.0  # segundos que o turn rate fica reduzido após bater numa parede
 @export var BOULDER_FOV_INCREASE := 10.0
 @export var BOULDER_DECAL_INTERVAL := 0.2
 @export var BOULDER_RADIUS := 2.0  # tem que bater com o raio do SphereMesh_boulder na cena (tamanho máximo)
 @export var BOULDER_GROW_DISTANCE := 35.0  # distância percorrida até alcançar o tamanho máximo (não cresce parado)
 @export var BOULDER_START_SCALE := 0.5  # começa do tamanho aproximado do jogador (diâmetro 2.0 = metade do máximo 4.0)
 @export var BOULDER_TURN_RATE := 1.6  # rad/s, bem mais devagar — difícil de ajustar a direção, feito uma pedra pesada
-@export var ROLL_ANIM_SPEED_MULTIPLIER := 2.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
+@export var BOULDER_IMPACT_SHAKE_TRAUMA := 0.9  # trauma no baque mais forte possível (bate no pico da rampa)
+@export var BOULDER_IMPACT_SHAKE_MIN_FRACTION := 0.35  # trauma mínimo garantido mesmo num toque fraco na parede
+@export var ROLL_ANIM_SPEED_MULTIPLIER := 1.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
 
 @export_group("Fire Dash (Fire Shift)")
@@ -103,6 +111,7 @@ const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 @export_group("Model Facing (cada rig tem sua própria convenção de eixo 'frente')")
 @export var MANNEQUIN_FACING_FLIP_DEGREES := 180.0  # rig encara +Z, precisa desse flip pra bater com a direção do movimento
 @export var GOLEM_FACING_FLIP_DEGREES := 180.0  # rig encara -Y no Blender, mas de frente (ver memory golem-rig-source) — precisa do flip pra ficar de costas pra câmera igual o Mannequin
+@export var AIR_BIRD_FACING_FLIP_DEGREES := 180.0  # rig Sketchfab, convenção não conferida ainda — ajustar se andar de costas/de lado
 
 @onready var nameplate: Label3D = %Nameplate
 @onready var menu: Control = %Menu
@@ -114,7 +123,6 @@ const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 @onready var button_fire: Button = %ButtonFire
 @onready var button_earth: Button = %ButtonEarth
 @onready var button_air: Button = %ButtonAir
-@onready var button_golem: Button = %ButtonGolem
 @onready var button_element_earth: Button = %ButtonElementEarth
 @onready var button_element_fire: Button = %ButtonElementFire
 @onready var button_element_air: Button = %ButtonElementAir
@@ -134,13 +142,15 @@ const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 @onready var leap_indicator: Node3D = $LeapIndicator
 @onready var mannequin_mesh: Node3D = $Model
 @onready var golem_mesh: Node3D = $GolemModel
-@onready var boulder_mesh: MeshInstance3D = $BoulderMesh
+@onready var air_bird_mesh: Node3D = $AirBirdModel
+@onready var boulder_mesh: Node3D = $BoulderMesh
+@onready var boulder_model: Node3D = $BoulderMesh/BoulderModel  # pedra vinda do .glb feito no Blender
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var mannequin_animation_player: AnimationPlayer = $Model/AnimationPlayer
 
-# Modelo/animation player/skeleton "ativos" — trocam de alvo quando o elemento GOLEM
-# é selecionado (botão 4), reaproveitando o mesmo código de facing/tint/animação
-# que já existe pro Mannequin, só apontando pro rig do golem enquanto ele estiver ativo.
+# Modelo/animation player/skeleton "ativos" — trocam de alvo conforme o elemento
+# selecionado (EARTH = golem de pedra, AIR = air_bird, FIRE = Mannequin), reaproveitando
+# o mesmo código de facing/tint/animação que já existe pro Mannequin.
 var player_mesh: Node3D
 var animation_player: AnimationPlayer
 var golem_animation_player: AnimationPlayer
@@ -176,6 +186,10 @@ var _boulder_decal_timer := 0.0
 var _boulder_roll_dir := Vector3.ZERO
 var _boulder_time_expired := false
 var _boulder_was_airborne := false
+var _boulder_base_speed := 0.0  # velocidade "atual" no instante em que o dash começou — a rampa vai de 50% a 200% disso
+var _boulder_launch_boost_timer := 0.0  # empurrão extra pra frente, decaindo linearmente até 0 em BOULDER_LAUNCH_BOOST_DURATION
+var _boulder_bounce_cooldown := 0.0  # evita quicar de novo enquanto ainda encostado na mesma parede
+var _boulder_bounce_turn_rate_timer := 0.0  # turn rate reduzido enquanto > 0, contando pra baixo depois de um quique
 
 # Camera shake (trauma-based, like the common Godot "screen shake" recipe)
 var shake_trauma := 0.0
@@ -239,7 +253,8 @@ func _ready():
 	# Descobre skeleton/osso de torso/AnimationPlayer de CADA modelo (Mannequin e Golem)
 	# uma vez só, no boot. O golem não tem osso "spine" (rig próprio: Head/Chest/Hip/...),
 	# então seu torso-aim simplesmente fica desativado (_golem_torso_bone_idx == -1) — não
-	# tiver osso compatível, não tenta torcer nada.
+	# tiver osso compatível, não tenta torcer nada. O air_bird ainda não tem AnimationPlayer
+	# nem torso-aim (rig sem clipes por enquanto, ver AIR_BIRD_FACING_FLIP_DEGREES).
 	_mannequin_skeleton = _find_skeleton(mannequin_mesh)
 	if _mannequin_skeleton:
 		_mannequin_torso_bone_idx = _find_torso_bone(_mannequin_skeleton)
@@ -307,7 +322,6 @@ func _ready():
 	button_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
-	button_golem.pressed.connect(func(): _set_player_element(ElementsEnum.Element.GOLEM))
 
 	button_element_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_element_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
@@ -383,8 +397,7 @@ func _process(delta: float) -> void:
 		_set_player_element(ElementsEnum.Element.AIR)
 
 	# Abilities — cada uma se comporta diferente dependendo do elemento escolhido.
-	# GOLEM joga IGUAL a EARTH (mesmas habilidades); só muda o modelo/animação.
-	var is_earth = player_element == ElementsEnum.Element.EARTH or player_element == ElementsEnum.Element.GOLEM
+	var is_earth = player_element == ElementsEnum.Element.EARTH
 	var is_fire = player_element == ElementsEnum.Element.FIRE
 	var is_air = player_element == ElementsEnum.Element.AIR
 
@@ -579,8 +592,13 @@ func _physics_process(delta: float) -> void:
 
 	var current_speed = SPEED
 	if is_boulder:
-		# Acelera conforme a bola cresce/rola (mesmo progresso usado no crescimento visual)
-		current_speed = SPEED * lerp(BOULDER_MIN_SPEED_MULTIPLIER, BOULDER_SPEED_MULTIPLIER, _boulder_progress())
+		# Rampa de 50% a 200% da velocidade que o jogador tinha ao ativar o dash (_boulder_base_speed),
+		# conforme a distância percorrida (mesmo progresso usado no crescimento visual da bola)
+		current_speed = _boulder_base_speed * lerp(BOULDER_MIN_SPEED_MULTIPLIER, BOULDER_SPEED_MULTIPLIER, _boulder_progress())
+		# Empurrão extra e breve pra frente, só no instante em que o dash começa, decaindo até 0
+		if _boulder_launch_boost_timer > 0.0:
+			current_speed += BOULDER_LAUNCH_BOOST_SPEED * (_boulder_launch_boost_timer / BOULDER_LAUNCH_BOOST_DURATION)
+			_boulder_launch_boost_timer = max(0.0, _boulder_launch_boost_timer - delta)
 	elif is_fire_dashing:
 		current_speed = SPEED * FIRE_DASH_MULTIPLIER
 	elif is_crouching:
@@ -605,6 +623,9 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0, current_speed)
 
 	move_and_slide()
+
+	if is_boulder:
+		_update_boulder_wall_bounce(delta)
 
 	# Finite state machine de animação (idle/andar/correr/pular/agachar)
 	var horizontal_speed = Vector3(velocity.x, 0, velocity.z).length()
@@ -646,16 +667,52 @@ func _apply_boulder_movement(direction: Vector3, current_speed: float, delta: fl
 	# Com input, o input sempre manda.
 	var target_dir = direction if direction.length() > 0.01 else _get_horizontal_forward()
 
+	if _boulder_bounce_turn_rate_timer > 0.0:
+		_boulder_bounce_turn_rate_timer = max(0.0, _boulder_bounce_turn_rate_timer - delta)
+
 	if _boulder_roll_dir.length() < 0.01:
 		_boulder_roll_dir = target_dir
 	else:
+		var turn_rate = BOULDER_TURN_RATE
+		if _boulder_bounce_turn_rate_timer > 0.0:
+			turn_rate *= BOULDER_BOUNCE_TURN_RATE_MULTIPLIER
 		var angle_to_target = _boulder_roll_dir.signed_angle_to(target_dir, Vector3.UP)
-		var max_step = BOULDER_TURN_RATE * delta
+		var max_step = turn_rate * delta
 		var step = clamp(angle_to_target, -max_step, max_step)
 		_boulder_roll_dir = _boulder_roll_dir.rotated(Vector3.UP, step).normalized()
 
 	velocity.x = _boulder_roll_dir.x * current_speed
 	velocity.z = _boulder_roll_dir.z * current_speed
+
+
+# Quicar em paredes: reflete a direção do rolamento no ângulo de impacto, perde parte da
+# velocidade e reinicia a rampa (_boulder_base_speed vira a velocidade já reduzida, rampa
+# de novo entre 50% e 200% dela, exatamente como no início do dash).
+func _update_boulder_wall_bounce(delta: float) -> void:
+	if _boulder_bounce_cooldown > 0.0:
+		_boulder_bounce_cooldown -= delta
+		return
+
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		var normal = collision.get_normal()
+		if absf(normal.y) > 0.5:
+			continue  # chão/teto, não é parede
+
+		# Trauma proporcional à velocidade de impacto: um toque leve mal balança a câmera,
+		# bater na parede no pico da rampa (SPEED * BOULDER_SPEED_MULTIPLIER) sacode em cheio.
+		var impact_speed = Vector3(velocity.x, 0, velocity.z).length()
+		var max_ramp_speed = SPEED * BOULDER_SPEED_MULTIPLIER
+		var impact_fraction = clampf(impact_speed / max(max_ramp_speed, 0.001), BOULDER_IMPACT_SHAKE_MIN_FRACTION, 1.0)
+
+		_boulder_roll_dir = _boulder_roll_dir.bounce(normal).normalized()
+		_boulder_base_speed *= (1.0 - BOULDER_BOUNCE_SPEED_LOSS)
+		_boulder_bounce_turn_rate_timer = BOULDER_BOUNCE_TURN_RATE_DURATION
+		boulder_distance_traveled = 0.0
+		_boulder_launch_boost_timer = 0.0
+		_boulder_bounce_cooldown = BOULDER_BOUNCE_COOLDOWN
+		add_camera_shake(BOULDER_IMPACT_SHAKE_TRAUMA * impact_fraction)
+		break
 
 
 func _update_model_facing(direction: Vector3, delta: float) -> void:
@@ -668,14 +725,19 @@ func _update_model_facing(direction: Vector3, delta: float) -> void:
 	# flip de 180°; o Golem encara -Y no Blender — convenção diferente, ver memory
 	# golem-rig-source). Por isso o flip é por export em vez de fixo, pra dar pra ajustar
 	# sem mexer em código se ele ficar andando de costas/de lado.
-	var flip_degrees = GOLEM_FACING_FLIP_DEGREES if player_mesh == golem_mesh else MANNEQUIN_FACING_FLIP_DEGREES
+	var flip_degrees = MANNEQUIN_FACING_FLIP_DEGREES
+	if player_mesh == golem_mesh:
+		flip_degrees = GOLEM_FACING_FLIP_DEGREES
+	elif player_mesh == air_bird_mesh:
+		flip_degrees = AIR_BIRD_FACING_FLIP_DEGREES
 	target_basis = target_basis.rotated(Vector3.UP, deg_to_rad(flip_degrees))
 	var current_quat = player_mesh.global_transform.basis.get_rotation_quaternion()
 	var target_quat = target_basis.get_rotation_quaternion()
 	var new_quat = current_quat.slerp(target_quat, clamp(MODEL_TURN_RATE * delta, 0.0, 1.0))
 
 	var gt = player_mesh.global_transform
-	gt.basis = Basis(new_quat)
+	var current_scale = gt.basis.get_scale()
+	gt.basis = Basis(new_quat).scaled(current_scale)
 	player_mesh.global_transform = gt
 
 
@@ -810,7 +872,9 @@ func _apply_boulder_roll(delta: float) -> void:
 	if speed < 0.01:
 		return
 
-	var roll_axis = horizontal_velocity.normalized().cross(Vector3.UP)
+	# Rolando pra frente: o topo da pedra tem que girar no sentido do movimento, não contra —
+	# por isso é UP.cross(v), e não v.cross(UP) (que dá o eixo invertido).
+	var roll_axis = Vector3.UP.cross(horizontal_velocity.normalized())
 	var angular_speed = speed / (BOULDER_RADIUS * _current_boulder_scale())
 	boulder_mesh.global_rotate(roll_axis, angular_speed * delta)
 
@@ -849,27 +913,37 @@ func _open_pause_options() -> void:
 func _apply_player_element(elem: int) -> void:
 	player_element = elem
 
-	# GOLEM troca o modelo/rig visível inteiro pro golem de pedra (com suas próprias
-	# animações Walk/Sprint/Jump); os outros elementos usam o Mannequin de sempre.
-	var use_golem = elem == ElementsEnum.Element.GOLEM
-	mannequin_mesh.visible = not use_golem
-	golem_mesh.visible = use_golem
-	player_mesh = golem_mesh if use_golem else mannequin_mesh
-	animation_player = golem_animation_player if use_golem else mannequin_animation_player
-	_skeleton = _golem_skeleton if use_golem else _mannequin_skeleton
-	_torso_bone_idx = _golem_torso_bone_idx if use_golem else _mannequin_torso_bone_idx
+	# EARTH troca o modelo/rig visível inteiro pro golem de pedra (com suas próprias
+	# animações Walk/Sprint/Jump); AIR usa o air_bird (malha estática por enquanto,
+	# sem AnimationPlayer/torso-aim); FIRE continua no Mannequin de sempre.
+	var use_golem = elem == ElementsEnum.Element.EARTH
+	var use_bird = elem == ElementsEnum.Element.AIR
+	var use_mannequin = not use_golem and not use_bird
 
-	# O golem já tem sua própria pedra/musgo pintados no material — não sobrescreve com a
-	# tinta de elemento (que é feita pro Mannequin genérico).
-	if not use_golem:
-		var tint: Color
-		match elem:
-			ElementsEnum.Element.FIRE:
-				tint = Color(0.9, 0.2, 0.15)
-			ElementsEnum.Element.AIR:
-				tint = Color(0.92, 0.95, 0.98)
-			_:
-				tint = Color(0.45, 0.3, 0.15)  # EARTH
+	mannequin_mesh.visible = use_mannequin
+	golem_mesh.visible = use_golem
+	air_bird_mesh.visible = use_bird
+
+	if use_golem:
+		player_mesh = golem_mesh
+		animation_player = golem_animation_player
+		_skeleton = _golem_skeleton
+		_torso_bone_idx = _golem_torso_bone_idx
+	elif use_bird:
+		player_mesh = air_bird_mesh
+		animation_player = null
+		_skeleton = null
+		_torso_bone_idx = -1
+	else:
+		player_mesh = mannequin_mesh
+		animation_player = mannequin_animation_player
+		_skeleton = _mannequin_skeleton
+		_torso_bone_idx = _mannequin_torso_bone_idx
+
+	# Golem e air_bird já têm material próprio pintado — não sobrescreve com a tinta
+	# de elemento (que é feita só pro Mannequin genérico).
+	if use_mannequin:
+		var tint: Color = Color(0.9, 0.2, 0.15) if elem == ElementsEnum.Element.FIRE else Color(0.45, 0.3, 0.15)
 		_tint_model_recursive(player_mesh, tint)
 
 	# O texto de controles e a hotbar são só do próprio jogador (CanvasLayer já é
@@ -895,8 +969,6 @@ func _update_controls_label(elem: int) -> void:
 			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo"
 		ElementsEnum.Element.AIR:
 			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
-		ElementsEnum.Element.GOLEM:
-			controls_label.text = "GOLEM\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
 		_:
 			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
 
@@ -913,13 +985,18 @@ func _tint_model_recursive(node: Node, tint: Color) -> void:
 		_tint_model_recursive(child, tint)
 
 
-# LMB: soco corpo a corpo, sem projétil nenhum. Cada clique avança 1 hit do combo
-# (Jab -> Hook -> Uppercut -> Jab...).
+# LMB: soco corpo a corpo, sem projétil nenhum. No Mannequin, cada clique avança 1 hit
+# do combo (Jab -> Hook -> Uppercut -> Jab...); o golem tem os 3 golpes num clipe só
+# ("PunchCombo", ver memory golem-shapekey-export-limitation), então toca ele inteiro.
 func _shoot_lmb() -> void:
 	lmb_busy = true
 
-	var combo_anim = LMB_COMBO_ANIMATIONS[lmb_wave_count % LMB_COMBO_ANIMATIONS.size()]
-	lmb_wave_count += 1
+	var combo_anim: String
+	if player_mesh == golem_mesh:
+		combo_anim = "PunchCombo"
+	else:
+		combo_anim = LMB_COMBO_ANIMATIONS[lmb_wave_count % LMB_COMBO_ANIMATIONS.size()]
+		lmb_wave_count += 1
 
 	_play_animation.rpc(combo_anim)
 	await get_tree().create_timer(LMB_SHOT_INTERVAL).timeout
@@ -1084,6 +1161,11 @@ func _start_boulder_dash() -> void:
 	_boulder_time_expired = false
 	_boulder_was_airborne = false
 	_boulder_roll_dir = _get_horizontal_forward()
+	# Rampa relativa à velocidade que o jogador já tinha no instante do dash (parado conta
+	# como SPEED, senão o dash saindo do zero nunca ganharia impulso nenhum).
+	_boulder_base_speed = max(Vector3(velocity.x, 0, velocity.z).length(), SPEED)
+	_boulder_launch_boost_timer = BOULDER_LAUNCH_BOOST_DURATION
+	_boulder_bounce_cooldown = 0.0
 	boulder_mesh.scale = Vector3.ONE * BOULDER_START_SCALE
 	_set_boulder_visual.rpc(true)
 	# O Roll do mini-pulinho quase sempre é cortado antes do fim (fica mais rápido, o clipe
@@ -1104,9 +1186,21 @@ func _set_boulder_visual(active: bool) -> void:
 	boulder_mesh.visible = active
 	if not active:
 		boulder_mesh.scale = Vector3.ONE
-		boulder_mesh.set_surface_override_material(0, null)
+		_set_boulder_surface_material(null)
 		for child in boulder_mesh.get_children():
-			child.queue_free()
+			if child != boulder_model:
+				child.queue_free()
+
+
+func _set_boulder_surface_material(material: Material) -> void:
+	# O modelo da boulder vem do .glb, então o override vai em cada MeshInstance3D de dentro
+	# dele, e não no BoulderMesh (que agora é só o Node3D que escala/gira/esconde a pedra).
+	var mesh_instances := boulder_model.find_children("*", "MeshInstance3D", true, false)
+	if boulder_model is MeshInstance3D:
+		mesh_instances.append(boulder_model)  # caso o importador do .glb vire o próprio root em mesh
+	for mesh_instance in mesh_instances:
+		for surface in mesh_instance.mesh.get_surface_count():
+			mesh_instance.set_surface_override_material(surface, material)
 
 
 func _start_fire_dash() -> void:
@@ -1220,7 +1314,7 @@ func ignite_boulder() -> void:
 	material.set_shader_parameter("scale", 8.0)
 	material.set_shader_parameter("sharpness", 20.0)
 	material.set_shader_parameter("emission_intensity", 3.0)
-	boulder_mesh.set_surface_override_material(0, material)
+	_set_boulder_surface_material(material)
 
 	var fire_particles = preload("res://Scenes/Effects/fire_particles.tscn")
 	var particles_instance = fire_particles.instantiate()

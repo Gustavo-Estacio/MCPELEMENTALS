@@ -20,6 +20,7 @@
 - **[ROCK_SLING_GUIDE.md](ROCK_SLING_GUIDE.md)** - Como funciona Rock Sling (Q)
 - **[FIREBALL_GUIDE.md](FIREBALL_GUIDE.md)** - Como funciona FireBall (E)
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Resumo técnico
+- **[DEV_FX.md](DEV_FX.md)** - Aba DEV das opções: efeitos visuais (cel, outline, bloom...)
 
 ### Arquitetura
 - **[COMPLETE_STRUCTURE.md](COMPLETE_STRUCTURE.md)** - Estrutura detalhada do sistema
