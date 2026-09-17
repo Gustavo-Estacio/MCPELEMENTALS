@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ElementProfileResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Core/ElementProfileResource.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+element = 2
+display_name = "EARTH"
+kit_element = 2
+hotbar_element = 2
+uses_golem_rig = false
+applies_tint = true
+tint = Color(0.45, 0.3, 0.15, 1)
+controls_text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"

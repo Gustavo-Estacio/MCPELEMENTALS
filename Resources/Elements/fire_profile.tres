@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ElementProfileResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Core/ElementProfileResource.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+element = 0
+display_name = "FIRE"
+kit_element = 0
+hotbar_element = 0
+uses_golem_rig = false
+applies_tint = true
+tint = Color(0.9, 0.2, 0.15, 1)
+controls_text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo"

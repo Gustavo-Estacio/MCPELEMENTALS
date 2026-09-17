@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ElementProfileResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Core/ElementProfileResource.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+element = 3
+display_name = "AIR"
+kit_element = 3
+hotbar_element = 3
+uses_golem_rig = false
+applies_tint = true
+tint = Color(0.92, 0.95, 0.98, 1)
+controls_text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
