@@ -1,7 +1,0 @@
-res://Scenes/Effects/explosion.tscn
-res://Scenes/Player/Player.tscn
-res://Scripts/Core/ElementsEnum.gd
-res://Scripts/Entities/explosion.gd
-res://Scripts/Network/network.gd
-res://Scripts/Player/Player.gd
-res://Scripts/UI/main_menu.gd

@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dptt5bjok76aj"
-path="res://.godot/imported/air_bird.glb-ce4c3fc2b0a88f1a08195872e99f70e7.scn"
+path="res://.godot/imported/air_bird.glb-f7d23563319fef9becaccc9b11410c4f.scn"
 
 [deps]
 
-source_file="res://Assets/Player/air_bird.glb"
-dest_files=["res://.godot/imported/air_bird.glb-ce4c3fc2b0a88f1a08195872e99f70e7.scn"]
+source_file="res://Assets/Player/AirBird/air_bird.glb"
+dest_files=["res://.godot/imported/air_bird.glb-f7d23563319fef9becaccc9b11410c4f.scn"]
 
 [params]
 

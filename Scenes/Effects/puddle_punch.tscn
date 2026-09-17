@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://c8k2p9wr4mfvv"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/puddle_punch.gd" id="1_puddle_punch"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_puddle_big"]
+transparency = 1
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.3, 0.6, 1, 0.6)
+emission_enabled = true
+emission = Color(0.4, 0.7, 1, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_puddle_big"]
+material = SubResource("StandardMaterial3D_puddle_big")
+top_radius = 1.4
+bottom_radius = 1.4
+height = 0.04
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_punch"]
+emission_shape = 1
+emission_sphere_radius = 0.6
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 6.0
+initial_velocity_max = 11.0
+gravity = Vector3(0, -14, 0)
+scale_min = 0.3
+scale_max = 0.8
+color = Color(0.35, 0.7, 1, 0.9)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_punch"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(0.4, 0.75, 1, 0.85)
+emission_enabled = true
+emission = Color(0.5, 0.85, 1, 1)
+emission_energy_multiplier = 1.8
+
+[sub_resource type="SphereMesh" id="SphereMesh_punch"]
+material = SubResource("StandardMaterial3D_punch")
+radius = 0.18
+height = 0.36
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_puddle_punch"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[node name="PuddlePunch" type="Node3D"]
+script = ExtResource("1_puddle_punch")
+
+[node name="PuddleMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_puddle_big")
+
+[node name="PunchParticles" type="GPUParticles3D" parent="."]
+one_shot = true
+amount = 80
+lifetime = 0.8
+speed_scale = 2.0
+process_material = SubResource("ParticleProcessMaterial_punch")
+draw_pass_1 = SubResource("SphereMesh_punch")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_puddle_punch")

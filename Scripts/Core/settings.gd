@@ -10,6 +10,11 @@ const CONFIG_PATH := "user://settings.cfg"
 const SECTION := "settings"
 const KEYBIND_SECTION := "keybinds"
 
+## Presets da aba DEV: cada arquivo é um snapshot das chaves "dev_".
+## Fica dentro do projeto de propósito, pra dar pra versionar e passar pra
+## outra máquina (escrever em res:// só funciona rodando do editor).
+const PRESET_DIR := "res://Presets"
+
 const SFX_BUS := &"SFX"
 const MUSIC_BUS := &"Music"
 const AMBIENCE_BUS := &"Ambience"
@@ -18,7 +23,7 @@ signal setting_changed(key: String, value: Variant)
 signal keybinds_changed
 
 # Categorias na ordem em que aparecem no menu de opções.
-const CATEGORIES := ["general", "graphics", "controls", "audio", "accessibility"]
+const CATEGORIES := ["general", "graphics", "controls", "audio", "accessibility", "dev"]
 
 const CATEGORY_LABELS := {
 	"general": "General",
@@ -26,6 +31,7 @@ const CATEGORY_LABELS := {
 	"controls": "Controls",
 	"audio": "Audio",
 	"accessibility": "Accessibility",
+	"dev": "DEV",
 }
 
 # Ações remapeáveis no submenu de Controls (ordem = ordem na tela).
@@ -93,6 +99,104 @@ const SCHEMA := {
 			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
 		{"key": "reduce_motion", "label": "Reduce Motion (trails / shake)", "type": "bool", "default": false},
 		{"key": "high_contrast_reticle", "label": "High Contrast Reticle", "type": "bool", "default": false},
+	],
+	# Aba DEV: parque de testes dos efeitos visuais. Quem aplica é o autoload
+	# DevFX (Scripts/Core/dev_fx.gd), que escuta setting_changed e reage a
+	# qualquer chave com prefixo "dev_".
+	"dev": [
+		{"key": "dev_fx_enabled", "label": "Enable Dev Effects (master)", "type": "bool", "default": true},
+
+		{"key": "dev_header_cel", "label": "Cel Shading (posterize)", "type": "header"},
+		{"key": "dev_cel_enabled", "label": "Cel Shading", "type": "bool", "default": false},
+		{"key": "dev_cel_bands", "label": "Bands", "type": "range", "default": 4.0,
+			"min": 2.0, "max": 12.0, "step": 1.0},
+		{"key": "dev_cel_mix", "label": "Blend", "type": "range", "default": 100.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+
+		{"key": "dev_header_outline", "label": "Outline (depth edges)", "type": "header"},
+		{"key": "dev_outline_enabled", "label": "Outline", "type": "bool", "default": false},
+		{"key": "dev_outline_thickness", "label": "Thickness (px)", "type": "range", "default": 1.0,
+			"min": 0.5, "max": 4.0, "step": 0.5},
+		{"key": "dev_outline_threshold", "label": "Threshold (lower = more lines)", "type": "range", "default": 0.25,
+			"min": 0.05, "max": 1.0, "step": 0.05},
+		{"key": "dev_outline_opacity", "label": "Opacity", "type": "range", "default": 100.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+
+		{"key": "dev_header_rim", "label": "Rim Light", "type": "header"},
+		{"key": "dev_rim_enabled", "label": "Rim Light", "type": "bool", "default": false},
+		{"key": "dev_rim_power", "label": "Falloff Power", "type": "range", "default": 3.0,
+			"min": 0.5, "max": 8.0, "step": 0.5},
+		{"key": "dev_rim_strength", "label": "Strength", "type": "range", "default": 50.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+
+		{"key": "dev_header_bloom", "label": "Bloom (environment glow)", "type": "header"},
+		{"key": "dev_bloom_enabled", "label": "Bloom", "type": "bool", "default": true},
+		{"key": "dev_bloom_intensity", "label": "Intensity", "type": "range", "default": 0.8,
+			"min": 0.0, "max": 4.0, "step": 0.1},
+		{"key": "dev_bloom_strength", "label": "Strength", "type": "range", "default": 1.0,
+			"min": 0.0, "max": 2.0, "step": 0.05},
+		{"key": "dev_bloom_spread", "label": "Spread", "type": "range", "default": 0.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+		{"key": "dev_bloom_threshold", "label": "HDR Threshold", "type": "range", "default": 1.0,
+			"min": 0.0, "max": 2.0, "step": 0.05},
+
+		{"key": "dev_header_toon", "label": "Toon Shader (material override)", "type": "header"},
+		{"key": "dev_toon_enabled", "label": "Toon Shader", "type": "bool", "default": false},
+		{"key": "dev_toon_bands", "label": "Light Bands", "type": "range", "default": 3.0,
+			"min": 1.0, "max": 6.0, "step": 1.0},
+		{"key": "dev_toon_softness", "label": "Band Softness", "type": "range", "default": 2.0,
+			"min": 0.0, "max": 20.0, "step": 1.0, "suffix": "%"},
+		{"key": "dev_toon_shadow", "label": "Shadow Lift", "type": "range", "default": 35.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+		{"key": "dev_toon_specular", "label": "Toon Specular", "type": "range", "default": 30.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+		{"key": "dev_toon_energy", "label": "Light Energy", "type": "range", "default": 50.0,
+			"min": 10.0, "max": 200.0, "step": 5.0, "suffix": "%"},
+
+		{"key": "dev_header_distortion", "label": "Distortion", "type": "header"},
+		{"key": "dev_distortion_enabled", "label": "Distortion", "type": "bool", "default": false},
+		{"key": "dev_distortion_strength", "label": "Strength", "type": "range", "default": 5.0,
+			"min": 0.0, "max": 50.0, "step": 1.0},
+		{"key": "dev_distortion_speed", "label": "Speed", "type": "range", "default": 1.0,
+			"min": 0.0, "max": 5.0, "step": 0.5},
+		{"key": "dev_distortion_scale", "label": "Wave Scale", "type": "range", "default": 8.0,
+			"min": 1.0, "max": 40.0, "step": 1.0},
+
+		{"key": "dev_header_grain", "label": "Film Grain", "type": "header"},
+		{"key": "dev_grain_enabled", "label": "Film Grain", "type": "bool", "default": false},
+		{"key": "dev_grain_amount", "label": "Amount", "type": "range", "default": 20.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+		{"key": "dev_grain_size", "label": "Grain Size (px)", "type": "range", "default": 2.0,
+			"min": 1.0, "max": 8.0, "step": 1.0},
+		{"key": "dev_grain_animated", "label": "Animated", "type": "bool", "default": true},
+
+		{"key": "dev_header_grading", "label": "Color Grading", "type": "header"},
+		{"key": "dev_grading_enabled", "label": "Color Grading", "type": "bool", "default": false},
+		{"key": "dev_grading_exposure", "label": "Exposure", "type": "range", "default": 1.0,
+			"min": 0.2, "max": 3.0, "step": 0.05},
+		{"key": "dev_grading_contrast", "label": "Contrast", "type": "range", "default": 1.0,
+			"min": 0.5, "max": 2.0, "step": 0.05},
+		{"key": "dev_grading_saturation", "label": "Saturation", "type": "range", "default": 1.0,
+			"min": 0.0, "max": 2.0, "step": 0.05},
+		{"key": "dev_grading_temperature", "label": "Temperature (blue <-> red)", "type": "range", "default": 0.0,
+			"min": -100.0, "max": 100.0, "step": 5.0},
+		{"key": "dev_grading_tint", "label": "Tint (magenta <-> green)", "type": "range", "default": 0.0,
+			"min": -100.0, "max": 100.0, "step": 5.0},
+
+		{"key": "dev_header_chroma", "label": "Chromatic Aberration", "type": "header"},
+		{"key": "dev_chroma_enabled", "label": "Chromatic Aberration", "type": "bool", "default": false},
+		{"key": "dev_chroma_strength", "label": "Strength", "type": "range", "default": 30.0,
+			"min": 0.0, "max": 100.0, "step": 5.0, "suffix": "%"},
+		{"key": "dev_chroma_falloff", "label": "Edge Falloff", "type": "range", "default": 2.0,
+			"min": 0.0, "max": 4.0, "step": 0.5},
+
+		{"key": "dev_header_pixelate", "label": "Pixelation", "type": "header"},
+		{"key": "dev_pixelate_enabled", "label": "Pixelation", "type": "bool", "default": false},
+		{"key": "dev_pixelate_size", "label": "Pixel Size", "type": "range", "default": 4.0,
+			"min": 1.0, "max": 32.0, "step": 1.0},
+		{"key": "dev_pixelate_quantize", "label": "Quantize Colors", "type": "bool", "default": false},
+		{"key": "dev_pixelate_levels", "label": "Color Levels", "type": "range", "default": 16.0,
+			"min": 2.0, "max": 64.0, "step": 1.0},
 	],
 }
 
@@ -181,6 +285,59 @@ func save_settings() -> void:
 			config.set_value(KEYBIND_SECTION, action, _event_to_dict(event))
 
 	config.save(CONFIG_PATH)
+
+
+# ---------------------------------------------------------------- presets DEV
+
+func preset_names() -> PackedStringArray:
+	var names := PackedStringArray()
+	var dir := DirAccess.open(PRESET_DIR)
+	if dir == null:
+		return names
+	for file in dir.get_files():
+		if file.get_extension() == "cfg":
+			names.append(file.get_basename())
+	names.sort()
+	return names
+
+
+func save_preset(preset_name: String) -> bool:
+	var clean := preset_name.strip_edges().validate_filename()
+	if clean == "":
+		return false
+
+	if not DirAccess.dir_exists_absolute(PRESET_DIR):
+		var make_error := DirAccess.make_dir_recursive_absolute(PRESET_DIR)
+		if make_error != OK:
+			push_error("DEV preset: não deu pra criar %s (erro %d)" % [PRESET_DIR, make_error])
+			return false
+
+	var config := ConfigFile.new()
+	for entry in SCHEMA["dev"]:
+		var key: String = entry.get("key", "")
+		if entry["type"] == "header" or not values.has(key):
+			continue
+		config.set_value(SECTION, key, values[key])
+
+	var save_error := config.save(PRESET_DIR.path_join(clean + ".cfg"))
+	if save_error != OK:
+		push_error("DEV preset: não deu pra salvar \"%s\" (erro %d)" % [clean, save_error])
+		return false
+	return true
+
+
+func load_preset(preset_name: String) -> bool:
+	var config := ConfigFile.new()
+	if config.load(PRESET_DIR.path_join(preset_name + ".cfg")) != OK:
+		return false
+	if not config.has_section(SECTION):
+		return false
+
+	for key in config.get_section_keys(SECTION):
+		if key.begins_with("dev_"):
+			set_value(key, config.get_value(SECTION, key), false)
+	save_settings()
+	return true
 
 
 # ------------------------------------------------------------------- aplicação

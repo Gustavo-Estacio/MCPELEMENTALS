@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://c8k2p9wr4mfvx"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bubble"]
+transparency = 1
+cull_mode = 2
+shading_mode = 1
+albedo_color = Color(0.55, 0.85, 1, 0.28)
+emission_enabled = true
+emission = Color(0.6, 0.9, 1, 1)
+emission_energy_multiplier = 0.4
+metallic = 0.6
+roughness = 0.05
+rim_enabled = true
+rim = 0.6
+
+[sub_resource type="SphereMesh" id="SphereMesh_bubble"]
+material = SubResource("StandardMaterial3D_bubble")
+radius = 1.1
+height = 2.2
+
+[node name="WaterBubble" type="MeshInstance3D"]
+mesh = SubResource("SphereMesh_bubble")

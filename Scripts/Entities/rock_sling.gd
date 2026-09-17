@@ -99,8 +99,7 @@ func set_infused_with(elem: int) -> void:
 
 
 func _update_visual_infusion() -> void:
-	if $MeshInstance3D and infused_with == ElementsEnum.Element.FIRE:
-		var mesh = $MeshInstance3D
+	if has_node("Model") and infused_with == ElementsEnum.Element.FIRE:
 		var shader = load("res://Shaders/lava_ignite.gdshader")
 		var material = ShaderMaterial.new()
 		material.shader = shader
@@ -111,7 +110,10 @@ func _update_visual_infusion() -> void:
 		material.set_shader_parameter("sharpness", 20.0)
 		material.set_shader_parameter("emission_intensity", 3.0)
 
-		mesh.set_surface_override_material(0, material)
+		# A pedra vem de um .glb, então o override vai em cada MeshInstance3D de dentro do modelo.
+		for mesh_instance in $Model.find_children("*", "MeshInstance3D", true, false):
+			for surface in mesh_instance.mesh.get_surface_count():
+				mesh_instance.set_surface_override_material(surface, material)
 
 
 func _spawn_decal_and_cleanup(impact_pos = null, impact_normal = null) -> void:

@@ -1,0 +1,73 @@
+[gd_scene format=3 uid="uid://c8k2p9wr4mfvr"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/jet_stream.gd" id="1_jet_stream"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_jet"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 0, -1)
+spread = 8.0
+initial_velocity_min = 4.0
+initial_velocity_max = 8.0
+gravity = Vector3(0, -1, 0)
+scale_min = 0.25
+scale_max = 0.55
+color = Color(0.35, 0.7, 1, 0.85)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jet"]
+transparency = 1
+cull_mode = 1
+albedo_color = Color(0.35, 0.7, 1, 0.8)
+emission_enabled = true
+emission = Color(0.45, 0.8, 1, 1)
+emission_energy_multiplier = 1.4
+
+[sub_resource type="SphereMesh" id="SphereMesh_jet"]
+material = SubResource("StandardMaterial3D_jet")
+radius = 0.16
+height = 0.32
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_root"]
+radius = 0.3
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_jet"]
+radius = 0.9
+height = 3.0
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_jet"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:linear_velocity")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+
+[node name="JetStream" type="RigidBody3D"]
+collision_layer = 0
+collision_mask = 0
+gravity_scale = 0.0
+script = ExtResource("1_jet_stream")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_root")
+
+[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
+process_material = SubResource("ParticleProcessMaterial_jet")
+draw_pass_1 = SubResource("SphereMesh_jet")
+amount = 120
+lifetime = 0.6
+speed_scale = 2.0
+
+[node name="Area3D" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.2)
+collision_layer = 4
+collision_mask = 13
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("CylinderShape3D_jet")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_jet")

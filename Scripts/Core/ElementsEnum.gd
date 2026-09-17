@@ -9,7 +9,6 @@ enum Element {
 	EARTH = 2,
 	AIR = 3,
 	ELECTRIC = 4,
-	GOLEM = 5,
 }
 
 enum Slot {
