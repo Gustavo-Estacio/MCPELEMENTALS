@@ -27,13 +27,28 @@ const TOON_META := &"devfx_toon_originals"
 ## Toggles que só afetam o ColorRect 2D (pra pular o blit quando todos off).
 const SCREEN_TOGGLES := [
 	"dev_cel_enabled",
-	"dev_speedlines_enabled",
 	"dev_distortion_enabled",
 	"dev_grain_enabled",
 	"dev_grading_enabled",
 	"dev_chroma_enabled",
 	"dev_pixelate_enabled",
 ]
+
+## Speed lines não são opção de menu: quem liga é o gameplay (Player.gd), com um
+## preset por situação. Valores em % / unidades do shader.
+const SPEEDLINES_WALK := "walk"
+const SPEEDLINES_DASH := "dash"
+
+const SPEEDLINES_PRESETS := {
+	# Anexo 1: boost de andar fora de combate — bem sutil.
+	SPEEDLINES_WALK: {"strength": 5.0, "density": 10.0, "speed": 1.0, "falloff": 60.0},
+	# Anexo 2: dashes (Boulder / Fire / Air).
+	SPEEDLINES_DASH: {"strength": 60.0, "density": 60.0, "speed": 2.0, "falloff": 40.0},
+}
+
+const _SL_OFF := 0
+const _SL_HOLD := 1
+const _SL_FADE := 2
 
 var _layer: CanvasLayer
 var _rect: ColorRect
@@ -46,6 +61,13 @@ var _environment_cache: Environment
 var _toon_materials: Array[ShaderMaterial] = []
 var _toon_active := false
 
+var _sl_preset := ""
+var _sl_phase := _SL_OFF
+var _sl_alpha := 0.0
+var _sl_hold_left := -1.0  # negativo = fica ligado até mandarem parar
+var _sl_fade_left := 0.0
+var _sl_fade_time := 0.0
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -55,13 +77,16 @@ func _ready() -> void:
 	apply_all()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# O mundo (e o WorldEnvironment junto) é criado/destruído em runtime, então
 	# o bloom precisa ser reaplicado quando o Environment troca.
 	var environment := _environment()
 	if environment != _environment_cache:
 		_environment_cache = environment
 		_apply_bloom()
+
+	if _sl_phase != _SL_OFF:
+		_update_speedlines(delta)
 
 
 func _on_setting_changed(key: String, _value: Variant) -> void:
@@ -125,52 +150,145 @@ func apply_all() -> void:
 func _apply_screen(master: bool) -> void:
 	var any_on := false
 	for key in SCREEN_TOGGLES:
-		if _flag(key):
+		if master and _flag(key):
 			any_on = true
 			break
 
-	_rect.visible = master and any_on
-	if not _rect.visible:
-		return
+	# As speed lines são gameplay, não dependem do toggle mestre da aba DEV: o
+	# rect pode ficar visível só por causa delas.
+	_rect.visible = any_on or _sl_phase != _SL_OFF
 
-	_screen_material.set_shader_parameter("cel_enabled", _flag("dev_cel_enabled"))
+	# Empurra tudo sempre (e desligado quando o mestre está off), senão sobra
+	# efeito ligado do estado anterior quando o rect volta pelas speed lines.
+	_screen_material.set_shader_parameter("cel_enabled", master and _flag("dev_cel_enabled"))
 	_screen_material.set_shader_parameter("cel_bands", _num("dev_cel_bands"))
 	_screen_material.set_shader_parameter("cel_mix", _num("dev_cel_mix") / 100.0)
 
-	_screen_material.set_shader_parameter("speedlines_enabled", _flag("dev_speedlines_enabled"))
-	_screen_material.set_shader_parameter("speedlines_strength", _num("dev_speedlines_strength") / 100.0)
-	_screen_material.set_shader_parameter("speedlines_density", _num("dev_speedlines_density"))
-	_screen_material.set_shader_parameter("speedlines_speed", _num("dev_speedlines_speed"))
-	_screen_material.set_shader_parameter("speedlines_falloff", _num("dev_speedlines_falloff") / 100.0)
+	_apply_speedlines()
 
-	_screen_material.set_shader_parameter("distortion_enabled", _flag("dev_distortion_enabled"))
+	_screen_material.set_shader_parameter("distortion_enabled", master and _flag("dev_distortion_enabled"))
 	# slider 0..50 -> 0..0.05 de UV
 	_screen_material.set_shader_parameter("distortion_strength", _num("dev_distortion_strength") / 1000.0)
 	_screen_material.set_shader_parameter("distortion_speed", _num("dev_distortion_speed"))
 	_screen_material.set_shader_parameter("distortion_scale", _num("dev_distortion_scale"))
 
-	_screen_material.set_shader_parameter("grain_enabled", _flag("dev_grain_enabled"))
+	_screen_material.set_shader_parameter("grain_enabled", master and _flag("dev_grain_enabled"))
 	# slider 0..100 -> 0..0.5 de ruído somado
 	_screen_material.set_shader_parameter("grain_amount", _num("dev_grain_amount") / 200.0)
 	_screen_material.set_shader_parameter("grain_size", _num("dev_grain_size"))
 	_screen_material.set_shader_parameter("grain_animated", _flag("dev_grain_animated"))
 
-	_screen_material.set_shader_parameter("grading_enabled", _flag("dev_grading_enabled"))
+	_screen_material.set_shader_parameter("grading_enabled", master and _flag("dev_grading_enabled"))
 	_screen_material.set_shader_parameter("grading_exposure", _num("dev_grading_exposure"))
 	_screen_material.set_shader_parameter("grading_contrast", _num("dev_grading_contrast"))
 	_screen_material.set_shader_parameter("grading_saturation", _num("dev_grading_saturation"))
 	_screen_material.set_shader_parameter("grading_temperature", _num("dev_grading_temperature") / 100.0)
 	_screen_material.set_shader_parameter("grading_tint", _num("dev_grading_tint") / 100.0)
 
-	_screen_material.set_shader_parameter("chroma_enabled", _flag("dev_chroma_enabled"))
+	_screen_material.set_shader_parameter("chroma_enabled", master and _flag("dev_chroma_enabled"))
 	# slider 0..100 -> 0..0.02 de UV
 	_screen_material.set_shader_parameter("chroma_strength", _num("dev_chroma_strength") / 5000.0)
 	_screen_material.set_shader_parameter("chroma_falloff", _num("dev_chroma_falloff"))
 
-	_screen_material.set_shader_parameter("pixelate_enabled", _flag("dev_pixelate_enabled"))
+	_screen_material.set_shader_parameter("pixelate_enabled", master and _flag("dev_pixelate_enabled"))
 	_screen_material.set_shader_parameter("pixelate_size", _num("dev_pixelate_size"))
 	_screen_material.set_shader_parameter("pixelate_quantize", _flag("dev_pixelate_quantize"))
 	_screen_material.set_shader_parameter("pixelate_levels", _num("dev_pixelate_levels"))
+
+
+# ------------------------------------------------------------------ speed lines
+
+## Liga as speed lines e deixa ligadas até alguém chamar speedlines_stop().
+## Usado por quem tem duração variável (Boulder Dash, Fire Dash, boost de andar).
+func speedlines_start(preset: String) -> void:
+	if not SPEEDLINES_PRESETS.has(preset):
+		return
+	# Quem chama isso chama todo frame (o estado do player manda), então repetir
+	# o mesmo preset já ligado não pode reempurrar uniform à toa.
+	if _sl_phase == _SL_HOLD and _sl_preset == preset and _sl_hold_left < 0.0:
+		return
+	_sl_preset = preset
+	_sl_phase = _SL_HOLD
+	_sl_alpha = 1.0
+	_sl_hold_left = -1.0
+	_sl_fade_time = 0.0
+	_sl_fade_left = 0.0
+	_apply_screen(_flag("dev_fx_enabled"))
+
+
+## Liga em opacidade cheia por `hold` segundos e some em mais `fade` segundos.
+## Usado pelo Air Dash (100% até 1s, 100% -> 0% entre 1s e 1.4s).
+func speedlines_burst(preset: String, hold: float, fade: float) -> void:
+	if not SPEEDLINES_PRESETS.has(preset):
+		return
+	_sl_preset = preset
+	_sl_phase = _SL_HOLD
+	_sl_alpha = 1.0
+	_sl_hold_left = maxf(hold, 0.0)
+	_sl_fade_time = maxf(fade, 0.0)
+	_sl_fade_left = _sl_fade_time
+	_apply_screen(_flag("dev_fx_enabled"))
+
+
+## `preset` preenchido = só desliga se as linhas atuais forem desse preset, pra
+## o fim de um efeito não apagar o de outro que entrou por cima.
+func speedlines_stop(fade := 0.0, preset := "") -> void:
+	if _sl_phase == _SL_OFF:
+		return
+	if preset != "" and _sl_preset != preset:
+		return
+	if fade <= 0.0:
+		_speedlines_off()
+		return
+	_sl_phase = _SL_FADE
+	_sl_fade_time = fade
+	_sl_fade_left = fade * _sl_alpha  # já sumindo: continua de onde estava
+
+
+func speedlines_active() -> bool:
+	return _sl_phase != _SL_OFF
+
+
+func _speedlines_off() -> void:
+	_sl_phase = _SL_OFF
+	_sl_preset = ""
+	_sl_alpha = 0.0
+	_apply_screen(_flag("dev_fx_enabled"))
+
+
+func _update_speedlines(delta: float) -> void:
+	match _sl_phase:
+		_SL_HOLD:
+			if _sl_hold_left < 0.0:
+				return  # fica ligado até mandarem parar
+			_sl_hold_left -= delta
+			if _sl_hold_left > 0.0:
+				return
+			if _sl_fade_time <= 0.0:
+				_speedlines_off()
+				return
+			_sl_phase = _SL_FADE
+			_sl_fade_left = _sl_fade_time
+		_SL_FADE:
+			_sl_fade_left -= delta
+			if _sl_fade_left <= 0.0:
+				_speedlines_off()
+				return
+			_sl_alpha = clampf(_sl_fade_left / _sl_fade_time, 0.0, 1.0)
+			_apply_speedlines()
+
+
+func _apply_speedlines() -> void:
+	var active := _sl_phase != _SL_OFF and SPEEDLINES_PRESETS.has(_sl_preset)
+	_screen_material.set_shader_parameter("speedlines_enabled", active)
+	if not active:
+		return
+
+	var preset: Dictionary = SPEEDLINES_PRESETS[_sl_preset]
+	_screen_material.set_shader_parameter("speedlines_strength", float(preset["strength"]) / 100.0 * _sl_alpha)
+	_screen_material.set_shader_parameter("speedlines_density", float(preset["density"]))
+	_screen_material.set_shader_parameter("speedlines_speed", float(preset["speed"]))
+	_screen_material.set_shader_parameter("speedlines_falloff", float(preset["falloff"]) / 100.0)
 
 
 func _apply_depth(master: bool) -> void:

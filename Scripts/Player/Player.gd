@@ -7,8 +7,9 @@ class_name Player
 @export var JUMP_VELOCITY := 4.5 * 3.4 * (2.0 / 3.0)  # aumentado em 240%, depois reduzido em 1/3
 @export var mouse_sensitivity := 0.002
 
-@export_group("Speed Boost (andar sem tomar dano)")
-@export var BOOST_DELAY := 2.0  # segundos andando sem tomar dano
+@export_group("Speed Boost (andando fora de combate)")
+@export var BOOST_DELAY := 2.0  # segundos andando antes do boost entrar
+@export var OUT_OF_COMBAT_DELAY := 5.0  # segundos sem usar skill e sem tomar dano
 @export var BOOST_MULTIPLIER := 2.0
 @export var BOOST_FOV_INCREASE := 6.0
 @export var FOV_LERP_SPEED := 6.0
@@ -56,6 +57,9 @@ class_name Player
 @export var FLAMETHROWER_DURATION := 4.0
 @export var FLAMETHROWER_TICK_INTERVAL := 0.15
 
+@export_group("Fire Blast (Fire E)")
+@export var FIRE_BLAST_COOLDOWN := 2.0
+
 @export_group("Earth Spikes (Earth E)")
 @export var SPIKE_COUNT := 12
 @export var SPIKE_INTERVAL := 0.06
@@ -69,11 +73,47 @@ class_name Player
 
 const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 
+## Usar qualquer uma dessas ações coloca o jogador "em combate" (o pulo fica de
+## fora de propósito: pular andando não deveria derrubar o boost).
+const COMBAT_ACTIONS := ["skill_q", "skill_e", "skill_lmb", "skill_rmb", "skill_shift"]
+
+## Fade das speed lines quando o boost/dash acaba sem duração própria.
+const SPEEDLINE_STOP_FADE := 0.25
+
+## Slots que a HUD de cooldown mostra, na ordem em que aparecem na tela.
+## "id" é a chave usada em _cooldowns / get_skill_slots().
+const SKILL_SLOTS := {
+	ElementsEnum.Element.EARTH: [
+		{"id": "lmb", "key": "LMB", "name": "Soco"},
+		{"id": "rmb", "key": "RMB", "name": "Rochas"},
+		{"id": "q", "key": "Q", "name": "Rock Sling"},
+		{"id": "e", "key": "E", "name": "Earth Spikes"},
+		{"id": "shift", "key": "SHIFT", "name": "Boulder Dash"},
+	],
+	ElementsEnum.Element.FIRE: [
+		{"id": "lmb", "key": "LMB", "name": "Fireball"},
+		{"id": "rmb", "key": "RMB", "name": "Fire Cone"},
+		{"id": "q", "key": "Q", "name": "Flamethrower"},
+		{"id": "e", "key": "E", "name": "Fire Blast"},
+		{"id": "shift", "key": "SHIFT", "name": "Fire Dash"},
+	],
+	ElementsEnum.Element.AIR: [
+		{"id": "lmb", "key": "LMB", "name": "Air Slashes"},
+		{"id": "rmb", "key": "RMB", "name": "Slash of Air"},
+		{"id": "q", "key": "Q", "name": "Wind Torrent"},
+		{"id": "e", "key": "E", "name": "Tornado"},
+		{"id": "shift", "key": "SHIFT", "name": "Air Dash"},
+		{"id": "jump", "key": "SPACE", "name": "Duplo Pulo"},
+	],
+}
+
 @export_group("Air Dash (Air Shift)")
 @export var AIR_DASH_MAX_STACKS := 3
 @export var AIR_DASH_RECHARGE_TIME := 5.0
 @export var AIR_DASH_SPEED := 18.0
 @export var AIR_DASH_DURATION := 0.5  # janela em que o impulso do dash não é sobrescrito pelo movimento normal (dobro = dobro da distância percorrida)
+@export var AIR_DASH_LINES_HOLD := 1.0  # speed lines em opacidade cheia
+@export var AIR_DASH_LINES_FADE := 0.4  # e sumindo de 100% a 0% depois disso
 @export var AIR_DASH_FOV_INCREASE := 15.0
 @export var AIR_DASH_FOV_LERP_SPEED := 18.0  # subida rápida; a volta usa o FOV_LERP_SPEED normal
 
@@ -111,7 +151,7 @@ const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 @export_group("Model Facing (cada rig tem sua própria convenção de eixo 'frente')")
 @export var MANNEQUIN_FACING_FLIP_DEGREES := 180.0  # rig encara +Z, precisa desse flip pra bater com a direção do movimento
 @export var GOLEM_FACING_FLIP_DEGREES := 180.0  # rig encara -Y no Blender, mas de frente (ver memory golem-rig-source) — precisa do flip pra ficar de costas pra câmera igual o Mannequin
-@export var AIR_BIRD_FACING_FLIP_DEGREES := 180.0  # rig Sketchfab, convenção não conferida ainda — ajustar se andar de costas/de lado
+@export var AIR_BIRD_FACING_FLIP_DEGREES := 180.0  # rig próprio (Blender), encara -Y igual o golem — mesmo flip
 
 @onready var nameplate: Label3D = %Nameplate
 @onready var menu: Control = %Menu
@@ -163,6 +203,7 @@ var _golem_torso_bone_idx := -1
 
 var animation_fsm := PlayerAnimationFSM.new()
 var _pause_options_menu: OptionsMenu
+var _skill_hud: SkillHUD
 
 var player_element: int = ElementsEnum.Element.EARTH
 
@@ -171,7 +212,10 @@ var yaw: float = 0.0
 var pitch: float = 0.0
 
 var time_moving := 0.0
+var time_since_combat := 999.0  # sem usar skill nem tomar dano; começa fora de combate
+var _cooldowns := {}  # id do slot -> {"left": float, "total": float}, só pra HUD
 var is_boosted := false
+var _speedline_burst_timer := 0.0  # speed lines com duração própria (Air Dash)
 var base_fov := 90.0
 var is_moving := false
 var is_crouching := false
@@ -244,6 +288,13 @@ var _torso_debug_timer := 0.0
 func _enter_tree() -> void:
 	set_multiplayer_authority(int(name))
 
+
+func _exit_tree() -> void:
+	# Sair da partida no meio de um dash não pode deixar as speed lines presas na
+	# tela. Se quem saiu foi outro player, o refresh do local liga de volta no
+	# frame seguinte.
+	DevFX.speedlines_stop()
+
 func _ready():
 	menu.hide()
 	add_to_group('Players')
@@ -312,6 +363,11 @@ func _ready():
 	button_disconnect.disabled = not Network.is_networked
 	button_back_to_main_menu.pressed.connect(func(): Network.leave_server())
 	button_quit_desktop.pressed.connect(func(): get_tree().quit())
+
+	_skill_hud = SkillHUD.new()
+	_skill_hud.setup(self)
+	canvas_layer.add_child(_skill_hud)
+	canvas_layer.move_child(_skill_hud, 0)  # atrás do menu de pause e do resto da HUD
 
 	_pause_options_menu = OptionsMenu.new()
 	canvas_layer.add_child(_pause_options_menu)
@@ -395,6 +451,13 @@ func _process(delta: float) -> void:
 
 	if Input.is_action_just_pressed('select_air'):
 		_set_player_element(ElementsEnum.Element.AIR)
+
+	# Usar skill entra em combate (tomar dano também, em _apply_damage_effects).
+	# Ficar OUT_OF_COMBAT_DELAY segundos sem nenhum dos dois libera o speed boost.
+	for action in COMBAT_ACTIONS:
+		if Input.is_action_just_pressed(action):
+			_enter_combat()
+			break
 
 	# Abilities — cada uma se comporta diferente dependendo do elemento escolhido.
 	var is_earth = player_element == ElementsEnum.Element.EARTH
@@ -555,8 +618,19 @@ func _physics_process(delta: float) -> void:
 	var direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	is_moving = direction != Vector3.ZERO
 
-	# Speed boost: só acumula enquanto anda, e cai na hora se parar
-	if is_moving:
+	# Speed boost: andando e fora de combate. Só acumula enquanto anda, e cai na
+	# hora se parar, usar skill ou tomar dano.
+	time_since_combat += delta
+	if _speedline_burst_timer > 0.0:
+		_speedline_burst_timer -= delta
+
+	for id in _cooldowns.keys():
+		var cooldown: Dictionary = _cooldowns[id]
+		cooldown["left"] -= delta
+		if cooldown["left"] <= 0.0:
+			_cooldowns.erase(id)
+
+	if is_moving and time_since_combat >= OUT_OF_COMBAT_DELAY:
 		time_moving += delta
 		if not is_boosted and time_moving >= BOOST_DELAY:
 			_set_boosted(true)
@@ -564,6 +638,8 @@ func _physics_process(delta: float) -> void:
 		time_moving = 0.0
 		if is_boosted:
 			_set_boosted(false)
+
+	_update_speedlines_state()
 
 	# Boulder Dash: dura um tempo limitado. Se o tempo acabar no ar, só destransforma ao pousar;
 	# o pouso em si cria um decal de impacto maior.
@@ -990,6 +1066,7 @@ func _tint_model_recursive(node: Node, tint: Color) -> void:
 # ("PunchCombo", ver memory golem-shapekey-export-limitation), então toca ele inteiro.
 func _shoot_lmb() -> void:
 	lmb_busy = true
+	_start_cooldown("lmb", LMB_SHOT_INTERVAL)
 
 	var combo_anim: String
 	if player_mesh == golem_mesh:
@@ -1007,6 +1084,7 @@ func _shoot_lmb() -> void:
 # RMB: 2 projéteis grandes por clique, depois recarrega.
 func _shoot_rmb() -> void:
 	rmb_busy = true
+	_start_cooldown("rmb", RMB_SHOT_INTERVAL + 0.2 + RMB_RELOAD_TIME)
 
 	_play_animation.rpc("Pistol_Shoot")
 	Global.cast_ability.rpc_id(1, "rock_barrage_big", global_position, get_forward_direction())
@@ -1025,6 +1103,7 @@ func _shoot_rmb() -> void:
 # Earth E: fileira de até 6 espinhos, um surgindo depois do outro, se afastando do jogador.
 func _shoot_earth_spikes() -> void:
 	is_spiking = true
+	_start_cooldown("e", SPIKE_COUNT * SPIKE_INTERVAL)
 
 	_play_animation.rpc("SmashGround")
 	for i in range(SPIKE_COUNT):
@@ -1098,17 +1177,99 @@ func take_damage(_amount = 0, _source_peer_id: int = -1, element: int = -1) -> v
 
 @rpc("any_peer", "call_local")
 func _apply_damage_effects(element: int) -> void:
-	time_moving = 0.0
-	if is_boosted:
-		_set_boosted(false)
+	_enter_combat()
 
 	if is_boulder and boulder_infused_with == -1 and element == ElementsEnum.Element.FIRE:
 		ignite_boulder.rpc()
 
 
+func _enter_combat() -> void:
+	time_since_combat = 0.0
+	time_moving = 0.0
+	if is_boosted:
+		_set_boosted(false)
+
+
 func _set_boosted(value: bool) -> void:
 	is_boosted = value
 	speed_trail.emitting = value
+	_update_speedlines_state()
+
+
+# ------------------------------------------------------------- HUD de skills
+
+## Cooldown só pra HUD: quem manda no uso das skills continua sendo as flags
+## "busy" de cada uma. Aqui só guardamos quanto falta pra barra desenhar.
+func _start_cooldown(id: String, duration: float) -> void:
+	if duration <= 0.0:
+		return
+	_cooldowns[id] = {"left": duration, "total": duration}
+
+
+func _clear_cooldown(id: String) -> void:
+	_cooldowns.erase(id)
+
+
+## Estado de cada slot do elemento atual, no formato que a SkillHUD desenha.
+func get_skill_slots() -> Array:
+	var is_air := player_element == ElementsEnum.Element.AIR
+	var slots: Array = []
+
+	for definition in SKILL_SLOTS.get(player_element, []):
+		var id: String = definition["id"]
+		var slot := {
+			"key": definition["key"],
+			"name": definition["name"],
+			"ratio": 1.0,  # 1 = pronto
+			"remaining": 0.0,
+			"charges": -1,  # -1 = essa skill não usa carga
+			"max_charges": 0,
+			"active": false,
+		}
+
+		var cooldown: Dictionary = _cooldowns.get(id, {})
+		if not cooldown.is_empty() and cooldown["total"] > 0.0:
+			slot["remaining"] = cooldown["left"]
+			slot["ratio"] = clampf(1.0 - cooldown["left"] / cooldown["total"], 0.0, 1.0)
+
+		match id:
+			"shift":
+				if is_air:
+					# Air Dash é carga: a barra mostra a recarga do próximo stack.
+					slot["charges"] = air_dash_stacks
+					slot["max_charges"] = AIR_DASH_MAX_STACKS
+					if air_dash_stacks < AIR_DASH_MAX_STACKS:
+						slot["ratio"] = clampf(_air_dash_recharge_timer / AIR_DASH_RECHARGE_TIME, 0.0, 1.0)
+						slot["remaining"] = maxf(AIR_DASH_RECHARGE_TIME - _air_dash_recharge_timer, 0.0)
+				else:
+					slot["active"] = is_boulder or is_fire_dashing
+			"jump":
+				slot["charges"] = 1 if has_air_jump else 0
+				slot["max_charges"] = 1
+				slot["ratio"] = 1.0 if has_air_jump else 0.0
+			"q":
+				slot["active"] = is_flamethrowing
+
+		slots.append(slot)
+
+	return slots
+
+
+## Speed lines são efeito de tela: só valem pro jogador local. Dash (Boulder,
+## Fire) e boost duram o que a situação durar; o Air Dash tem tempo próprio e é
+## tratado como burst em _air_dash().
+func _update_speedlines_state() -> void:
+	if not is_multiplayer_authority():
+		return
+
+	if is_boulder or is_fire_dashing:
+		_speedline_burst_timer = 0.0
+		DevFX.speedlines_start(DevFX.SPEEDLINES_DASH)
+	elif is_boosted:
+		_speedline_burst_timer = 0.0
+		DevFX.speedlines_start(DevFX.SPEEDLINES_WALK)
+	elif _speedline_burst_timer <= 0.0:
+		DevFX.speedlines_stop(SPEEDLINE_STOP_FADE)
 
 
 func _apply_fov(delta: float) -> void:
@@ -1154,6 +1315,7 @@ func _set_boulder_growing(active: bool) -> void:
 
 func _start_boulder_dash() -> void:
 	is_boulder = true
+	_start_cooldown("shift", BOULDER_DURATION)
 	boulder_timer = 0.0
 	boulder_distance_traveled = 0.0
 	boulder_infused_with = -1
@@ -1176,6 +1338,7 @@ func _start_boulder_dash() -> void:
 
 func _end_boulder_dash() -> void:
 	is_boulder = false
+	_clear_cooldown("shift")
 	_set_boulder_visual.rpc(false)
 	_reset_golem_foliage.rpc()  # segunda rede de segurança: cobre cancelar o dash ainda no mini-pulinho
 
@@ -1205,12 +1368,14 @@ func _set_boulder_surface_material(material: Material) -> void:
 
 func _start_fire_dash() -> void:
 	is_fire_dashing = true
+	_start_cooldown("shift", FIRE_DASH_DURATION)
 	fire_dash_timer = 0.0
 	_set_fire_dash_visual.rpc(true)
 
 
 func _end_fire_dash() -> void:
 	is_fire_dashing = false
+	_clear_cooldown("shift")
 	_set_fire_dash_visual.rpc(false)
 
 
@@ -1229,6 +1394,7 @@ func _set_fire_dash_visual(active: bool) -> void:
 # Q (Fire): canaliza um jato de fogo contínuo por até 4s, ou até soltar a tecla antes.
 func _channel_flamethrower() -> void:
 	is_flamethrowing = true
+	_start_cooldown("q", FLAMETHROWER_DURATION)
 	var elapsed := 0.0
 
 	while elapsed < FLAMETHROWER_DURATION and Input.is_action_pressed('skill_q') and player_element == ElementsEnum.Element.FIRE:
@@ -1237,11 +1403,13 @@ func _channel_flamethrower() -> void:
 		elapsed += FLAMETHROWER_TICK_INTERVAL
 
 	is_flamethrowing = false
+	_clear_cooldown("q")  # soltou a tecla antes: a barra não pode continuar drenando
 
 
 # RMB (Fire): cone de fogo instantâneo na frente do jogador, depois recarrega.
 func _shoot_cone() -> void:
 	rmb_busy = true
+	_start_cooldown("rmb", RMB_RELOAD_TIME)
 
 	_play_animation.rpc("Pistol_Shoot")
 	Global.cast_ability.rpc_id(1, "fire_cone", global_position, get_forward_direction())
@@ -1253,9 +1421,10 @@ func _shoot_cone() -> void:
 # E (Fire): explosão em área centrada no jogador (fire blast).
 func _shoot_blast() -> void:
 	fire_blast_busy = true
+	_start_cooldown("e", FIRE_BLAST_COOLDOWN)
 
 	Global.cast_ability.rpc_id(1, "fire_blast", global_position, get_forward_direction())
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(FIRE_BLAST_COOLDOWN).timeout
 
 	fire_blast_busy = false
 
@@ -1275,12 +1444,19 @@ func _air_dash() -> void:
 	velocity.y = max(velocity.y, dash_dir.y * AIR_DASH_SPEED * 0.5)
 	air_dash_timer = AIR_DASH_DURATION
 
+	# Speed lines com tempo próprio: cheias até AIR_DASH_LINES_HOLD, depois de
+	# 100% a 0% em AIR_DASH_LINES_FADE.
+	_speedline_burst_timer = AIR_DASH_LINES_HOLD + AIR_DASH_LINES_FADE
+	if is_multiplayer_authority():
+		DevFX.speedlines_burst(DevFX.SPEEDLINES_DASH, AIR_DASH_LINES_HOLD, AIR_DASH_LINES_FADE)
+
 	Global.cast_ability.rpc_id(1, "air_dash_burst", global_position, dash_dir)
 
 
 # LMB (Air): 3 cortes de ar saindo de trás do jogador, cortando pra frente.
 func _shoot_air_slashes() -> void:
 	is_slashing = true
+	_start_cooldown("lmb", AIR_SLASH_COUNT * AIR_SLASH_INTERVAL)
 
 	for i in range(AIR_SLASH_COUNT):
 		Global.cast_ability.rpc_id(1, "air_slash", global_position, get_forward_direction())

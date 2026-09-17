@@ -92,7 +92,6 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0, 0
 [node name="GolemModel" parent="." unique_id=541504292 instance=ExtResource("8_golem")]
 
 [node name="AirBirdModel" parent="." unique_id=181757852 instance=ExtResource("9_airbird")]
-transform = Transform3D(0.12, 0, 0, 0, 0.12, 0, 0, 0, 0.12, 0, 0, 0)
 
 [node name="SpeedTrail" type="MeshInstance3D" parent="." unique_id=61250435]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

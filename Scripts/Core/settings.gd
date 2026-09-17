@@ -10,6 +10,11 @@ const CONFIG_PATH := "user://settings.cfg"
 const SECTION := "settings"
 const KEYBIND_SECTION := "keybinds"
 
+## Presets da aba DEV: cada arquivo é um snapshot das chaves "dev_".
+## Fica dentro do projeto de propósito, pra dar pra versionar e passar pra
+## outra máquina (escrever em res:// só funciona rodando do editor).
+const PRESET_DIR := "res://Presets"
+
 const SFX_BUS := &"SFX"
 const MUSIC_BUS := &"Music"
 const AMBIENCE_BUS := &"Ambience"
@@ -280,6 +285,59 @@ func save_settings() -> void:
 			config.set_value(KEYBIND_SECTION, action, _event_to_dict(event))
 
 	config.save(CONFIG_PATH)
+
+
+# ---------------------------------------------------------------- presets DEV
+
+func preset_names() -> PackedStringArray:
+	var names := PackedStringArray()
+	var dir := DirAccess.open(PRESET_DIR)
+	if dir == null:
+		return names
+	for file in dir.get_files():
+		if file.get_extension() == "cfg":
+			names.append(file.get_basename())
+	names.sort()
+	return names
+
+
+func save_preset(preset_name: String) -> bool:
+	var clean := preset_name.strip_edges().validate_filename()
+	if clean == "":
+		return false
+
+	if not DirAccess.dir_exists_absolute(PRESET_DIR):
+		var make_error := DirAccess.make_dir_recursive_absolute(PRESET_DIR)
+		if make_error != OK:
+			push_error("DEV preset: não deu pra criar %s (erro %d)" % [PRESET_DIR, make_error])
+			return false
+
+	var config := ConfigFile.new()
+	for entry in SCHEMA["dev"]:
+		var key: String = entry.get("key", "")
+		if entry["type"] == "header" or not values.has(key):
+			continue
+		config.set_value(SECTION, key, values[key])
+
+	var save_error := config.save(PRESET_DIR.path_join(clean + ".cfg"))
+	if save_error != OK:
+		push_error("DEV preset: não deu pra salvar \"%s\" (erro %d)" % [clean, save_error])
+		return false
+	return true
+
+
+func load_preset(preset_name: String) -> bool:
+	var config := ConfigFile.new()
+	if config.load(PRESET_DIR.path_join(preset_name + ".cfg")) != OK:
+		return false
+	if not config.has_section(SECTION):
+		return false
+
+	for key in config.get_section_keys(SECTION):
+		if key.begins_with("dev_"):
+			set_value(key, config.get_value(SECTION, key), false)
+	save_settings()
+	return true
 
 
 # ------------------------------------------------------------------- aplicação
