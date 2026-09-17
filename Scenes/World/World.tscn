@@ -415,9 +415,14 @@ mesh = SubResource("CylinderMesh_column")
 script = ExtResource("5_p1v5b")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=1712097946]
+_spawnable_scenes = PackedStringArray("uid://wj1j5cg0flnj", "uid://be342wrf0687", "uid://c1v7xmpf0d9dg8", "uid://b5f2hddxtfdaw", "uid://c1v7xmpf0d9dhq", "uid://b5f2hddxtfdax", "uid://dxg1kgamplbj4", "res://Scenes/Effects/earth_spike.tscn", "res://Scenes/Effects/air_slash.tscn", "res://Scenes/Effects/wind_particles.tscn", "res://Scenes/Effects/tornado.tscn", "res://Scenes/Effects/wind_torrent.tscn", "res://Scenes/Entities/ranged_enemy.tscn", "res://Scenes/Entities/melee_enemy.tscn", "res://Scenes/Entities/enemy_projectile.tscn")
 _spawnable_scenes = PackedStringArray("uid://wj1j5cg0flnj", "uid://be342wrf0687", "uid://c1v7xmpf0d9dg8", "uid://b5f2hddxtfdaw", "uid://c1v7xmpf0d9dhq", "uid://b5f2hddxtfdax", "uid://dxg1kgamplbj4", "res://Scenes/Effects/earth_spike.tscn", "res://Scenes/Effects/air_slash.tscn", "res://Scenes/Effects/wind_particles.tscn", "res://Scenes/Effects/tornado.tscn", "res://Scenes/Effects/wind_torrent.tscn", "res://Scenes/Effects/water_pellet.tscn", "res://Scenes/Effects/jet_stream.tscn", "res://Scenes/Effects/water_bomb.tscn", "res://Scenes/Effects/rain_zone.tscn", "res://Scenes/Effects/water_puddle.tscn", "res://Scenes/Effects/puddle_punch.tscn")
 spawn_path = NodePath("../SpawnContainer")
 
 [node name="TimerTarget" type="Timer" parent="." unique_id=1581330907]
 wait_time = 2.0
-autostart = true
+autostart = false
+
+[node name="TimerEnemy" type="Timer" parent="." unique_id=1581330908]
+wait_time = 6.0
+autostart = false
