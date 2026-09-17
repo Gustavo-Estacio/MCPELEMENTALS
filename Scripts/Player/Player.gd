@@ -71,6 +71,32 @@ class_name Player
 @export var RMB_SHOT_INTERVAL := 0.15
 @export var RMB_RELOAD_TIME := 2.0
 
+@export_group("Water Pellets (LMB Water)")
+@export var WATER_PELLET_COUNT := 3
+@export var WATER_PELLET_INTERVAL := 0.1
+@export var WATER_PELLET_COOLDOWN := 0.5
+
+@export_group("Jet Stream (RMB Water)")
+@export var JET_STREAM_COOLDOWN := 1.2
+
+@export_group("Puddle Punch (Water Q)")
+@export var PUDDLE_PUNCH_RANGE := 10.0
+@export var PUDDLE_PUNCH_COOLDOWN := 1.6
+
+@export_group("Water Bomb (Water E)")
+@export var WATER_BOMB_COOLDOWN := 3.0
+
+@export_group("Water Dash (Water Shift)")
+@export var WATER_DASH_DURATION := 5.0
+@export var WATER_DASH_MULTIPLIER := 2.0
+@export var WATER_DASH_PUDDLE_INTERVAL := 0.3
+
+@export_group("Aqua Link / Bubble (Water Space)")
+@export var AQUA_LINK_DURATION := 5.0
+@export var AQUA_LINK_RANGE := 15.0
+@export var AQUA_LINK_FOLLOW_LERP := 10.0
+@export var BUBBLE_SPEED_MULTIPLIER := 0.3
+
 const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 
 ## Usar qualquer uma dessas ações coloca o jogador "em combate" (o pulo fica de
@@ -104,6 +130,14 @@ const SKILL_SLOTS := {
 		{"id": "e", "key": "E", "name": "Tornado"},
 		{"id": "shift", "key": "SHIFT", "name": "Air Dash"},
 		{"id": "jump", "key": "SPACE", "name": "Duplo Pulo"},
+	],
+	ElementsEnum.Element.WATER: [
+		{"id": "lmb", "key": "LMB", "name": "Water Pellets"},
+		{"id": "rmb", "key": "RMB", "name": "Jet Stream"},
+		{"id": "q", "key": "Q", "name": "Puddle Punch"},
+		{"id": "e", "key": "E", "name": "Water Bomb"},
+		{"id": "shift", "key": "SHIFT", "name": "Water Dash"},
+		{"id": "space", "key": "SPACE", "name": "Aqua Link"},
 	],
 }
 
@@ -163,9 +197,11 @@ const SKILL_SLOTS := {
 @onready var button_fire: Button = %ButtonFire
 @onready var button_earth: Button = %ButtonEarth
 @onready var button_air: Button = %ButtonAir
+@onready var button_water: Button = %ButtonWater
 @onready var button_element_earth: Button = %ButtonElementEarth
 @onready var button_element_fire: Button = %ButtonElementFire
 @onready var button_element_air: Button = %ButtonElementAir
+@onready var button_element_water: Button = %ButtonElementWater
 
 @onready var controls_label: Label = %ControlsLabel
 @onready var label_session: Label = %LabelSession
@@ -263,6 +299,24 @@ var is_flamethrowing := false
 var fire_blast_busy := false
 var is_fire_dashing := false
 var fire_dash_timer := 0.0
+
+# Water abilities
+var is_shooting_pellets := false
+var is_jetting := false
+var is_charging_puddle := false
+var puddle_punch_busy := false
+var water_bomb_busy := false
+var is_water_dashing := false
+var water_dash_timer := 0.0
+var _water_dash_puddle_timer := 0.0
+var _has_puddle_target := false
+var _puddle_target_pos := Vector3.ZERO
+var _puddle_target_normal := Vector3.UP
+var _puddle_indicator_node: Node3D
+var is_water_linked := false
+var water_link_target: Player = null
+var water_link_timer := 0.0
+var is_water_bubble := false
 
 # Air abilities
 var air_dash_stacks := AIR_DASH_MAX_STACKS
@@ -378,10 +432,12 @@ func _ready():
 	button_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
+	button_water.pressed.connect(func(): _set_player_element(ElementsEnum.Element.WATER))
 
 	button_element_fire.pressed.connect(func(): _set_player_element(ElementsEnum.Element.FIRE))
 	button_element_earth.pressed.connect(func(): _set_player_element(ElementsEnum.Element.EARTH))
 	button_element_air.pressed.connect(func(): _set_player_element(ElementsEnum.Element.AIR))
+	button_element_water.pressed.connect(func(): _set_player_element(ElementsEnum.Element.WATER))
 
 	rock_sling_ability = RockSlingAbility.new()
 	fireball_ability = FireBallAbility.new()
@@ -456,6 +512,9 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed('select_air'):
 		_set_player_element(ElementsEnum.Element.AIR)
 
+	if Input.is_action_just_pressed('select_water'):
+		_set_player_element(ElementsEnum.Element.WATER)
+
 	# Usar skill entra em combate (tomar dano também, em _apply_damage_effects).
 	# Ficar OUT_OF_COMBAT_DELAY segundos sem nenhum dos dois libera o speed boost.
 	for action in COMBAT_ACTIONS:
@@ -467,6 +526,7 @@ func _process(delta: float) -> void:
 	var is_earth = player_element == ElementsEnum.Element.EARTH
 	var is_fire = player_element == ElementsEnum.Element.FIRE
 	var is_air = player_element == ElementsEnum.Element.AIR
+	var is_water = player_element == ElementsEnum.Element.WATER
 
 	# Q: Earth = rock sling (carrega e solta) / Fire = flamethrower (canaliza enquanto segura)
 	if is_earth and Input.is_action_just_pressed('skill_q') and not is_charging_leap and not is_boulder:
@@ -486,6 +546,15 @@ func _process(delta: float) -> void:
 		Global.cast_ability.rpc_id(1, "wind_torrent", global_position, get_forward_direction())
 		_add_cast_fov_kick()
 
+	# Q (Water): segurar mostra um indicador circular na superfície mirada (alcance
+	# limitado, ver PUDDLE_PUNCH_RANGE); soltar crava a poça e, um instante depois, o soco.
+	if is_water and Input.is_action_just_pressed('skill_q') and not is_charging_puddle:
+		is_charging_puddle = true
+
+	if is_water and Input.is_action_just_released('skill_q') and is_charging_puddle:
+		_release_puddle_punch()
+		is_charging_puddle = false
+
 	# LMB: Earth = rajada rápida de pedras / Fire = bola de fogo (carrega e solta, como o E antigo) / Air = 3 air slashes
 	if is_earth and Input.is_action_just_pressed('skill_lmb') and not lmb_busy and not is_boulder:
 		_shoot_lmb()
@@ -502,6 +571,10 @@ func _process(delta: float) -> void:
 	if is_air and Input.is_action_just_pressed('skill_lmb') and not is_slashing:
 		_shoot_air_slashes()
 
+	# LMB (Water): 3 pellets de água em rajada rápida
+	if is_water and Input.is_action_just_pressed('skill_lmb') and not is_shooting_pellets:
+		_shoot_water_pellets()
+
 	# RMB: Earth = 2 pedras grandes / Fire = cone de fogo instantâneo / Air = deflete projéteis
 	if is_earth and Input.is_action_just_pressed('skill_rmb') and not rmb_busy and not is_boulder:
 		_shoot_rmb()
@@ -511,6 +584,10 @@ func _process(delta: float) -> void:
 
 	if is_air and Input.is_action_just_pressed('skill_rmb'):
 		Global.cast_ability.rpc_id(1, "slash_of_air", global_position, get_forward_direction())
+
+	# RMB (Water): 1 jet stream — jato pressurizado que empurra objetos "moveable" e causa dano
+	if is_water and Input.is_action_just_pressed('skill_rmb') and not is_jetting:
+		_shoot_jet_stream()
 
 	# E: Earth = fileira de espinhos / Fire = explosão em área (fire blast) / Air = tornado em zigue-zague
 	if is_earth and Input.is_action_just_pressed('skill_e') and not is_boulder and not is_spiking:
@@ -522,6 +599,10 @@ func _process(delta: float) -> void:
 	if is_air and Input.is_action_just_pressed('skill_e'):
 		Global.cast_ability.rpc_id(1, "tornado", global_position, get_forward_direction())
 		_add_cast_fov_kick()
+
+	# E (Water): bola grande de água — ao explodir no chão, chove no local por alguns segundos
+	if is_water and Input.is_action_just_pressed('skill_e') and not water_bomb_busy:
+		_throw_water_bomb()
 
 	# Earth Leap: só carrega se o jogador estiver parado (e fica preso no lugar enquanto carrega).
 	# Andando, ou durante o Boulder Dash, espaço só faz o pulo normal.
@@ -536,6 +617,15 @@ func _process(delta: float) -> void:
 	if is_air and Input.is_action_just_pressed('jump') and not is_on_floor() and has_air_jump:
 		has_air_jump = false
 		velocity.y = AIR_JUMP_VELOCITY
+
+	# Espaço (Water), no ar: gruda num aliado próximo por AQUA_LINK_DURATION segundos; sem
+	# aliado por perto, vira uma bolha que voa livre a BUBBLE_SPEED_MULTIPLIER da velocidade
+	# normal. Apertar de novo enquanto já está na bolha cancela e devolve o controle normal.
+	if is_water and Input.is_action_just_pressed('jump'):
+		if is_water_bubble:
+			_end_water_bubble()
+		elif not is_on_floor() and not is_water_linked:
+			_activate_water_space_ability()
 
 	if Input.is_action_just_released('jump') and is_charging_leap:
 		_release_earth_leap()
@@ -554,6 +644,9 @@ func _process(delta: float) -> void:
 	if is_air and Input.is_action_just_pressed('skill_shift') and air_dash_stacks > 0:
 		_air_dash()
 
+	if is_water and Input.is_action_just_pressed('skill_shift') and not is_water_dashing:
+		_start_water_dash()
+
 	# Ctrl no ar: mini dash instantâneo pra baixo (funciona durante o Boulder Dash e o planar do Air)
 	if Input.is_action_just_pressed('crouch') and not is_on_floor():
 		velocity.y = min(velocity.y, -CTRL_AIR_DASH_DOWN_SPEED)
@@ -568,19 +661,33 @@ func _process(delta: float) -> void:
 	else:
 		leap_indicator.hide()
 
+	if is_charging_puddle:
+		_update_puddle_indicator()
+	else:
+		_hide_puddle_indicator()
+
 
 func _physics_process(delta: float) -> void:
 	if not is_multiplayer_authority():
 		return
 
+	# Aqua Link (Water): enquanto grudado, o jogador só segue o aliado — nenhum outro
+	# movimento/gravidade/animação roda nesse frame.
+	if is_water_linked:
+		_update_water_link(delta)
+		return
+
 	# Gravity — na queda do Earth Leap, cai mais rápido pra bater com força no chão.
-	# No Air, segurar espaço no ar plana (cai bem mais devagar).
+	# No Air, segurar espaço no ar plana (cai bem mais devagar). No Water, a bolha
+	# flutua livre (sem gravidade) enquanto o jogador escolhe pra onde voar.
 	var is_air = player_element == ElementsEnum.Element.AIR
 	var should_glide = is_air and not is_on_floor() and Input.is_action_pressed('jump') and velocity.y < 0.0
 
 	if not is_on_floor():
 		var gravity_multiplier = 1.0
-		if is_leaping and velocity.y < 0.0:
+		if is_water_bubble:
+			gravity_multiplier = 0.0
+		elif is_leaping and velocity.y < 0.0:
 			gravity_multiplier = EARTH_LEAP_FALL_ACCEL_MULTIPLIER
 		elif should_glide:
 			gravity_multiplier = GLIDE_FALL_MULTIPLIER
@@ -670,6 +777,17 @@ func _physics_process(delta: float) -> void:
 		if fire_dash_timer >= FIRE_DASH_DURATION:
 			_end_fire_dash()
 
+	# Water Dash: velocidade dobrada por um tempo fixo, deixando poças no rastro
+	if is_water_dashing:
+		water_dash_timer += delta
+		if water_dash_timer >= WATER_DASH_DURATION:
+			_end_water_dash()
+		else:
+			_water_dash_puddle_timer += delta
+			if _water_dash_puddle_timer >= WATER_DASH_PUDDLE_INTERVAL:
+				_water_dash_puddle_timer = 0.0
+				Global.spawn_water_puddle.rpc_id(1, global_position)
+
 	var current_speed = SPEED
 	if is_boulder:
 		# Rampa de 50% a 200% da velocidade que o jogador tinha ao ativar o dash (_boulder_base_speed),
@@ -681,6 +799,8 @@ func _physics_process(delta: float) -> void:
 			_boulder_launch_boost_timer = max(0.0, _boulder_launch_boost_timer - delta)
 	elif is_fire_dashing:
 		current_speed = SPEED * FIRE_DASH_MULTIPLIER
+	elif is_water_dashing:
+		current_speed = SPEED * WATER_DASH_MULTIPLIER
 	elif is_crouching:
 		current_speed = SPEED * CROUCH_SPEED_MULTIPLIER
 	elif is_boosted:
@@ -695,6 +815,8 @@ func _physics_process(delta: float) -> void:
 		velocity.z = 0.0
 	elif is_boulder:
 		_apply_boulder_movement(direction, current_speed, delta)
+	elif is_water_bubble:
+		_apply_bubble_movement(direction, delta)
 	elif direction:
 		velocity.x = direction.x * current_speed
 		velocity.z = direction.z * current_speed
@@ -703,6 +825,9 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0, current_speed)
 
 	move_and_slide()
+
+	if is_water_bubble and is_on_floor():
+		_end_water_bubble()
 
 	if is_boulder:
 		_update_boulder_wall_bounce(delta)
@@ -1023,7 +1148,11 @@ func _apply_player_element(elem: int) -> void:
 	# Golem e air_bird já têm material próprio pintado — não sobrescreve com a tinta
 	# de elemento (que é feita só pro Mannequin genérico).
 	if use_mannequin:
-		var tint: Color = Color(0.9, 0.2, 0.15) if elem == ElementsEnum.Element.FIRE else Color(0.45, 0.3, 0.15)
+		var tint: Color = Color(0.45, 0.3, 0.15)
+		if elem == ElementsEnum.Element.FIRE:
+			tint = Color(0.9, 0.2, 0.15)
+		elif elem == ElementsEnum.Element.WATER:
+			tint = Color(0.35, 0.75, 1.0)
 		_tint_model_recursive(player_mesh, tint)
 
 	# O texto de controles e a hotbar são só do próprio jogador (CanvasLayer já é
@@ -1049,6 +1178,8 @@ func _update_controls_label(elem: int) -> void:
 			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo"
 		ElementsEnum.Element.AIR:
 			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
+		ElementsEnum.Element.WATER:
+			controls_label.text = "WATER\nQ: Puddle Punch (segure pra mirar, solte pra socar)\nE: Water Bomb (chove no impacto)\nLMB: 3 Water Pellets\nRMB: Jet Stream\nSHIFT: Water Dash (deixa poças no rastro)\nSPACE (no ar): gruda num aliado ou vira bolha voadora"
 		_:
 			controls_label.text = "EARTH\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)"
 
@@ -1246,13 +1377,15 @@ func get_skill_slots() -> Array:
 						slot["ratio"] = clampf(_air_dash_recharge_timer / AIR_DASH_RECHARGE_TIME, 0.0, 1.0)
 						slot["remaining"] = maxf(AIR_DASH_RECHARGE_TIME - _air_dash_recharge_timer, 0.0)
 				else:
-					slot["active"] = is_boulder or is_fire_dashing
+					slot["active"] = is_boulder or is_fire_dashing or is_water_dashing
 			"jump":
 				slot["charges"] = 1 if has_air_jump else 0
 				slot["max_charges"] = 1
 				slot["ratio"] = 1.0 if has_air_jump else 0.0
 			"q":
-				slot["active"] = is_flamethrowing
+				slot["active"] = is_flamethrowing or is_charging_puddle
+			"space":
+				slot["active"] = is_water_linked or is_water_bubble
 
 		slots.append(slot)
 
@@ -1431,6 +1564,237 @@ func _shoot_blast() -> void:
 	await get_tree().create_timer(FIRE_BLAST_COOLDOWN).timeout
 
 	fire_blast_busy = false
+
+
+# LMB (Water): 3 pellets de água em rajada rápida.
+func _shoot_water_pellets() -> void:
+	is_shooting_pellets = true
+	_start_cooldown("lmb", WATER_PELLET_COUNT * WATER_PELLET_INTERVAL + WATER_PELLET_COOLDOWN)
+
+	for i in range(WATER_PELLET_COUNT):
+		_play_animation.rpc("Pistol_Shoot")
+		Global.cast_ability.rpc_id(1, "water_pellet", global_position, get_forward_direction())
+		await get_tree().create_timer(WATER_PELLET_INTERVAL).timeout
+
+	await get_tree().create_timer(WATER_PELLET_COOLDOWN).timeout
+	is_shooting_pellets = false
+
+
+# RMB (Water): 1 jet stream instantâneo, depois recarrega.
+func _shoot_jet_stream() -> void:
+	is_jetting = true
+	_start_cooldown("rmb", JET_STREAM_COOLDOWN)
+
+	_play_animation.rpc("Pistol_Shoot")
+	Global.cast_ability.rpc_id(1, "jet_stream", global_position, get_forward_direction())
+	await get_tree().create_timer(JET_STREAM_COOLDOWN).timeout
+
+	is_jetting = false
+
+
+# Q (Water): raycast da câmera pra frente, limitado a PUDDLE_PUNCH_RANGE. Sem acerto
+# dentro do alcance, o indicador some (e soltar Q nesse estado não crava nada).
+func _update_puddle_indicator() -> void:
+	var space_state = get_world_3d().direct_space_state
+	var from = camera_3d.global_position
+	var to = from + get_forward_direction() * PUDDLE_PUNCH_RANGE
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.exclude = [get_rid()]
+	var result = space_state.intersect_ray(query)
+
+	if result:
+		_has_puddle_target = true
+		_puddle_target_pos = result.position
+		_puddle_target_normal = result.normal
+		_show_puddle_indicator(result.position, result.normal)
+	else:
+		_has_puddle_target = false
+		_hide_puddle_indicator()
+
+
+func _show_puddle_indicator(pos: Vector3, normal: Vector3) -> void:
+	if not is_instance_valid(_puddle_indicator_node):
+		var scene = preload("res://Scenes/Effects/puddle_indicator.tscn")
+		_puddle_indicator_node = scene.instantiate()
+		add_child(_puddle_indicator_node)
+
+	var up = normal.normalized() if normal.length() > 0.01 else Vector3.UP
+	_puddle_indicator_node.global_transform = Transform3D(Basis(Quaternion(Vector3.UP, up)), pos + up * 0.03)
+	_puddle_indicator_node.visible = true
+
+
+func _hide_puddle_indicator() -> void:
+	if is_instance_valid(_puddle_indicator_node):
+		_puddle_indicator_node.visible = false
+
+
+# Soltar Q (Water): crava a poça no ponto mirado — o soco que empurra tudo ao redor
+# (props "moveable" e outros jogadores) sai um instante depois, do lado do servidor.
+func _release_puddle_punch() -> void:
+	_hide_puddle_indicator()
+
+	if not _has_puddle_target:
+		return
+
+	puddle_punch_busy = true
+	_start_cooldown("q", PUDDLE_PUNCH_COOLDOWN)
+	add_camera_shake(SHAKE_CAST_TRAUMA)
+
+	Global.cast_ability.rpc_id(1, "puddle_punch", _puddle_target_pos, _puddle_target_normal)
+	await get_tree().create_timer(PUDDLE_PUNCH_COOLDOWN).timeout
+
+	puddle_punch_busy = false
+
+
+# E (Water): joga uma bola grande de água; ao bater no chão, chove no local por alguns segundos.
+func _throw_water_bomb() -> void:
+	water_bomb_busy = true
+	_start_cooldown("e", WATER_BOMB_COOLDOWN)
+
+	_play_animation.rpc("Pistol_Shoot")
+	Global.cast_ability.rpc_id(1, "water_bomb", global_position, get_forward_direction())
+	await get_tree().create_timer(WATER_BOMB_COOLDOWN).timeout
+
+	water_bomb_busy = false
+
+
+# Shift (Water): corrida com velocidade dobrada, deixando poças no rastro (ver _physics_process).
+func _start_water_dash() -> void:
+	is_water_dashing = true
+	_start_cooldown("shift", WATER_DASH_DURATION)
+	water_dash_timer = 0.0
+	_water_dash_puddle_timer = 0.0
+	_set_water_dash_visual.rpc(true)
+
+
+func _end_water_dash() -> void:
+	is_water_dashing = false
+	_clear_cooldown("shift")
+	_set_water_dash_visual.rpc(false)
+
+
+@rpc("any_peer", "call_local")
+func _set_water_dash_visual(active: bool) -> void:
+	if active:
+		if not player_mesh.has_node("WaterDashParticles"):
+			var water_particles = preload("res://Scenes/Effects/water_dash_particles.tscn")
+			var particles_instance = water_particles.instantiate()
+			particles_instance.name = "WaterDashParticles"
+			player_mesh.add_child(particles_instance)
+	elif player_mesh.has_node("WaterDashParticles"):
+		player_mesh.get_node("WaterDashParticles").queue_free()
+
+
+# Espaço (Water), no ar: procura um aliado por perto pra grudar; sem ninguém dentro
+# do alcance, vira uma bolha que voa livre.
+func _activate_water_space_ability() -> void:
+	var ally = _find_nearby_ally(AQUA_LINK_RANGE)
+	if ally:
+		_start_water_link(ally)
+	else:
+		_start_water_bubble()
+
+
+func _find_nearby_ally(search_range: float) -> Player:
+	var closest: Player = null
+	var closest_dist := search_range
+
+	for node in get_tree().get_nodes_in_group('Players'):
+		if node == self or not is_instance_valid(node):
+			continue
+		var dist = global_position.distance_to(node.global_position)
+		if dist <= closest_dist:
+			closest = node
+			closest_dist = dist
+
+	return closest
+
+
+func _start_water_link(ally: Player) -> void:
+	is_water_linked = true
+	water_link_target = ally
+	water_link_timer = 0.0
+	velocity = Vector3.ZERO
+	_set_water_link_visual.rpc(true)
+
+
+func _end_water_link() -> void:
+	is_water_linked = false
+	water_link_target = null
+	_set_water_link_visual.rpc(false)
+
+
+# Enquanto grudado, a posição segue o aliado (sem física normal) até acabar o tempo
+# ou o aliado sumir (desconectou/morreu).
+func _update_water_link(delta: float) -> void:
+	if not is_instance_valid(water_link_target):
+		_end_water_link()
+		return
+
+	water_link_timer += delta
+	velocity = Vector3.ZERO
+
+	var target_pos = water_link_target.global_position + Vector3(0, 1.6, 0)
+	global_position = global_position.lerp(target_pos, clamp(AQUA_LINK_FOLLOW_LERP * delta, 0.0, 1.0))
+
+	if water_link_timer >= AQUA_LINK_DURATION:
+		_end_water_link()
+
+
+@rpc("any_peer", "call_local")
+func _set_water_link_visual(active: bool) -> void:
+	if active:
+		if not has_node("WaterLinkRing"):
+			var ring = preload("res://Scenes/Effects/water_link_ring.tscn").instantiate()
+			ring.name = "WaterLinkRing"
+			add_child(ring)
+	elif has_node("WaterLinkRing"):
+		get_node("WaterLinkRing").queue_free()
+
+
+func _start_water_bubble() -> void:
+	is_water_bubble = true
+	_set_water_bubble_visual.rpc(true)
+
+
+func _end_water_bubble() -> void:
+	is_water_bubble = false
+	_set_water_bubble_visual.rpc(false)
+
+
+@rpc("any_peer", "call_local")
+func _set_water_bubble_visual(active: bool) -> void:
+	if active:
+		if not player_mesh.has_node("WaterBubble"):
+			var bubble = preload("res://Scenes/Effects/water_bubble.tscn").instantiate()
+			bubble.name = "WaterBubble"
+			player_mesh.add_child(bubble)
+	elif player_mesh.has_node("WaterBubble"):
+		player_mesh.get_node("WaterBubble").queue_free()
+
+
+# Voo livre da bolha: direção horizontal normal + Espaço/Ctrl pra subir/descer, tudo a
+# BUBBLE_SPEED_MULTIPLIER da velocidade normal.
+func _apply_bubble_movement(direction: Vector3, _delta: float) -> void:
+	var vertical_input := 0.0
+	if Input.is_action_pressed('jump'):
+		vertical_input += 1.0
+	if Input.is_action_pressed('crouch'):
+		vertical_input -= 1.0
+
+	var fly_dir = direction + Vector3.UP * vertical_input
+	if fly_dir.length() > 0.01:
+		velocity = fly_dir.normalized() * (SPEED * BUBBLE_SPEED_MULTIPLIER)
+	else:
+		velocity = Vector3.ZERO
+
+
+# Empurrão usado pelo Puddle Punch (Water Q) pra afastar outros jogadores da poça.
+@rpc("any_peer", "call_local")
+func apply_knockback(dir: Vector3, force: float) -> void:
+	if not is_multiplayer_authority():
+		return
+	velocity += dir.normalized() * force
 
 
 # Shift (Air): dash omnidirecional instantâneo, consome 1 dos 3 stacks (cada um recarrega em 5s).

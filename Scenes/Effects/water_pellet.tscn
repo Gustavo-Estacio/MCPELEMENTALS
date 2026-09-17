@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://c8k2p9wr4mfvq"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/water_pellet.gd" id="1_pellet"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pellet"]
+radius = 0.22
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pellet"]
+albedo_color = Color(0.3, 0.65, 1, 0.9)
+emission_enabled = true
+emission = Color(0.4, 0.75, 1, 1)
+emission_energy_multiplier = 1.2
+metallic = 0.2
+roughness = 0.1
+
+[sub_resource type="SphereMesh" id="SphereMesh_pellet"]
+material = SubResource("StandardMaterial3D_pellet")
+radius = 0.22
+height = 0.44
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_pellet"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:linear_velocity")
+properties/2/spawn = false
+properties/2/replication_mode = 1
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_detect_pellet"]
+radius = 0.4
+
+[node name="WaterPellet" type="RigidBody3D"]
+collision_layer = 0
+collision_mask = 1
+mass = 0.4
+gravity_scale = 0.5
+script = ExtResource("1_pellet")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_pellet")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_pellet")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_pellet")
+
+[node name="Area3D" type="Area3D" parent="."]
+collision_layer = 4
+collision_mask = 13
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("SphereShape3D_detect_pellet")
