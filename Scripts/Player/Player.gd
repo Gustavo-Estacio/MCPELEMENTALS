@@ -423,6 +423,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			pass  # For future aiming
 
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_KP_0:
+			Global.world.toggle_enemy_spawn.rpc_id(1)
+
 
 func _process(delta: float) -> void:
 	if not is_multiplayer_authority():

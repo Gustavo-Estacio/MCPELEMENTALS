@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Entities/ranged_enemy.gd" id="1_ranged"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ranged"]
+albedo_color = Color(0.15, 0.45, 0.95, 1)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ranged"]
+material = SubResource("StandardMaterial3D_ranged")
+radius = 0.5
+height = 2.0
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ranged"]
+radius = 0.5
+height = 2.0
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_ranged"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 2
+properties/1/path = NodePath(".:health")
+properties/1/spawn = true
+properties/1/replication_mode = 2
+
+[node name="RangedEnemy" type="StaticBody3D"]
+script = ExtResource("1_ranged")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_ranged")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_ranged")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_ranged")
+
+[node name="FireTimer" type="Timer" parent="."]
+wait_time = 2.5
+autostart = true
