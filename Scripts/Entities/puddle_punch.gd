@@ -2,13 +2,14 @@ extends Node3D
 
 class_name PuddlePunch
 
-@export var TELEGRAPH_DELAY := 0.8  # tempo com a poça no chão antes do soco sair
+@export var TELEGRAPH_DELAY := 0.4  # metade do anterior (0.8): tempo com a poça no chão antes do soco
 @export var RADIUS := 10.0  # 4x o anterior (2.5)
 @export var DISC_THICKNESS := 2.4  # 4x o anterior (0.6): alcance bem maior pra CIMA
 @export var PUSH_FORCE := 14.0
 @export var DAMAGE := 15
 @export var HEAL := 45  # em player, agua cura em vez de machucar (3x)
 @export var LIFETIME_AFTER_PUNCH := 1.0
+@export var EDGE_UP_FACTOR := 0.35  # quanto do empurrão "pra fora da superfície" sobra na borda do raio
 
 @onready var puddle_mesh: MeshInstance3D = $PuddleMesh
 @onready var punch_particles: GPUParticles3D = $PunchParticles
@@ -58,23 +59,43 @@ func _punch() -> void:
 		if not body or already_hit.has(body):
 			continue
 
-		var to_body = body.global_position - global_position
-		var horizontal_dir = Vector3(to_body.x, 0, to_body.z)
-		horizontal_dir = horizontal_dir.normalized() if horizontal_dir.length() > 0.01 else Vector3.FORWARD
-		var push_dir = (horizontal_dir + up).normalized()
+		already_hit.append(body)
+		var push_dir = _knockback_dir(body.global_position, up)
 
-		if body.has_method('apply_knockback'):
-			already_hit.append(body)
-			body.apply_knockback.rpc_id(int(body.name), push_dir, PUSH_FORCE)
-			# Agua cura player e machuca inimigo (ver Player.heal)
-			if body.is_in_group('Players') and body.has_method('heal'):
+		if body.is_in_group('Players'):
+			# Agua cura aliado (ver Player.heal); o empurrão vale pra todo mundo
+			if body.has_method('heal'):
 				body.heal(HEAL)
-			elif body.has_method('take_damage') and body.name != str(owner_peer_id):
-				body.take_damage(DAMAGE, owner_peer_id, ElementsEnum.Element.WATER)
+			if body.has_method('apply_knockback'):
+				body.apply_knockback.rpc_id(int(body.name), push_dir, PUSH_FORCE)
 		elif body is RigidBody3D and "is_moveable" in body and body.is_moveable:
-			already_hit.append(body)
 			body.apply_central_impulse(push_dir * PUSH_FORCE * body.mass)
+		else:
+			# Inimigo (ou qualquer outro alvo): leva dano E empurrão
+			if body.has_method('take_damage'):
+				body.take_damage(DAMAGE, owner_peer_id, ElementsEnum.Element.WATER)
+			if body.has_method('apply_knockback'):
+				body.apply_knockback.rpc(push_dir, PUSH_FORCE)
 
 	await get_tree().create_timer(LIFETIME_AFTER_PUNCH).timeout
 	if is_instance_valid(self):
 		queue_free()
+
+
+# Empurrão radial em relação ao CENTRO do soco: quem está no meio vai reto pra fora da
+# superfície (pra cima, no chão), quem está perto da borda sai mais pro lado, seguindo a
+# direção centro -> alvo. Como a referência é a normal da superfície (`up`), isso já sai
+# rotacionado 90° sozinho quando o soco acontece numa parede.
+func _knockback_dir(target_pos: Vector3, up: Vector3) -> Vector3:
+	var to_body = target_pos - global_position
+	# Componente do vetor dentro do plano da superfície (tira o que está ao longo da normal)
+	var radial = to_body - up * to_body.dot(up)
+	var radial_dist = radial.length()
+
+	if radial_dist < 0.01:
+		return up  # bem no centro: só pra fora da superfície
+
+	# 0 no centro, 1 na circunferência
+	var edge_ratio = clampf(radial_dist / RADIUS, 0.0, 1.0)
+	var outward = lerpf(1.0, EDGE_UP_FACTOR, edge_ratio)  # perde força "pra cima" na borda
+	return (up * outward + radial.normalized() * edge_ratio).normalized()

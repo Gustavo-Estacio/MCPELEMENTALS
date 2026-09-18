@@ -12,6 +12,9 @@ extends CharacterBody3D
 
 var can_attack := true
 var is_dead := false
+var _knockback_timer := 0.0
+
+const KNOCKBACK_DURATION := 0.35
 
 func _ready() -> void:
 	add_to_group('Enemies')
@@ -21,6 +24,13 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if not is_multiplayer_authority() or is_dead:
+		return
+
+	if _knockback_timer > 0.0:
+		_knockback_timer -= delta
+		if not is_on_floor():
+			velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
+		move_and_slide()
 		return
 
 	if not is_on_floor():
@@ -109,3 +119,11 @@ func _die() -> void:
 	is_dead = true
 	remove_from_group('Enemies')
 	EnemyDeath.start(self, mesh_instance)
+
+
+# Empurrão vindo de habilidades (ex: Puddle Punch). Enquanto o timer corre, a IA não
+# sobrescreve a velocidade — senão o inimigo "gruda" no chão e o knockback não aparece.
+@rpc("any_peer", "call_local")
+func apply_knockback(dir: Vector3, force: float) -> void:
+	velocity = dir.normalized() * force
+	_knockback_timer = KNOCKBACK_DURATION
