@@ -7,6 +7,14 @@ var spawn_container: Node3D
 
 const BALL = preload("uid://be342wrf0687")
 const ROCK_MAX_CHARGE_POWER := 2.5
+# Força de lançamento do Rock Sling, multiplicada pelo charge. Vale pros dois eixos
+# (frente e o empurrão vertical), então mirando na horizontal o arremesso sai a 45° e o
+# ângulo não muda com esse número — só a velocidade.
+#
+# Calibrado pro DOBRO DO ALCANCE, não pro dobro da força: alcance balístico cresce com o
+# quadrado da velocidade, então dobrar a força daria ~4x de distância. 4.9 (era 10.0/3.0,
+# ou seja 1.47x) dobra o alcance dentro de ~3% em toda a faixa de charge.
+const ROCK_SLING_LAUNCH_SPEED := 4.9
 
 
 func rock_scale_factor(charge_power: float) -> float:
@@ -64,8 +72,8 @@ func cast_ability(ability_type: String, pos: Vector3, dir: Vector3, charge_power
 			var spawn_pos = pos + Vector3(0, spawn_height, 0) + horizontal_dir * (1.5 * charge_power)
 			rock.global_position = spawn_pos
 
-			var velocity = dir * (10.0 * charge_power / 3.0)
-			velocity.y += (10.0 * charge_power) / 3.0
+			var velocity = dir * (ROCK_SLING_LAUNCH_SPEED * charge_power)
+			velocity.y += ROCK_SLING_LAUNCH_SPEED * charge_power
 			rock.linear_velocity = velocity
 
 		"fireball":

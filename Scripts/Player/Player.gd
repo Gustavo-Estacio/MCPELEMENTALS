@@ -2,6 +2,10 @@ extends CharacterBody3D
 
 class_name Player
 
+@export_group("Health")
+@export var max_health := 1000
+var health := max_health
+
 @export_group("Movement")
 @export var SPEED := 5.0
 @export var JUMP_VELOCITY := 4.5 * 3.4 * (2.0 / 3.0)  # aumentado em 240%, depois reduzido em 1/3
@@ -176,6 +180,11 @@ const SKILL_SLOTS := {
 @export_group("Animation")
 @export var ANIM_BLEND_TIME := 0.15
 @export var MODEL_TURN_RATE := 10.0  # rad/s, giro do modelo pra encarar a direção que anda
+# Quanto tempo cada clipe de ação do air_bird segura a animação (duração do clipe a 30 fps:
+# Dash 18 frames, Attack 32, Tornado 36)
+@export var BIRD_DASH_ANIM_HOLD := 0.60
+@export var BIRD_ATTACK_ANIM_HOLD := 1.05
+@export var BIRD_TORNADO_ANIM_HOLD := 1.20
 
 @export_group("Torso Aim (torso sempre de costas pra câmera, pés livres)")
 @export var TORSO_YAW_MAX_DEGREES := 75.0
@@ -230,6 +239,7 @@ const SKILL_SLOTS := {
 var player_mesh: Node3D
 var animation_player: AnimationPlayer
 var golem_animation_player: AnimationPlayer
+var air_bird_animation_player: AnimationPlayer
 var _golem_foliage_meshes: Array[MeshInstance3D] = []  # Leaves_*/Moss_*: escondidas só durante o Roll, ver _reset_golem_foliage
 
 var _mannequin_skeleton: Skeleton3D
@@ -240,6 +250,7 @@ var _golem_torso_bone_idx := -1
 var animation_fsm := PlayerAnimationFSM.new()
 var _pause_options_menu: OptionsMenu
 var _skill_hud: SkillHUD
+var _health_bar: HealthBar
 
 var player_element: int = ElementsEnum.Element.EARTH
 
@@ -324,6 +335,10 @@ var _air_dash_recharge_timer := 0.0
 var air_dash_timer := 0.0
 var is_slashing := false
 var is_gliding := false
+# Dash/Attack/Tornado do air_bird: seguram a animação por um tempinho. Sem isso a FSM de
+# locomoção e o _update_jump_animation() sobrescrevem o clipe no frame seguinte e a ação
+# nunca aparece.
+var _bird_action_timer := 0.0
 var cast_fov_kick := 0.0  # pulso de FOV ao soltar Wind Torrent/Tornado, decai sozinho de volta ao normal
 var has_air_jump := true  # duplo pulo: 1 pulo extra no ar, recarrega ao pousar ou usar o air dash
 
@@ -355,15 +370,17 @@ func _ready():
 	nameplate.text = name
 	hit_marker.hide()
 
-	# Descobre skeleton/osso de torso/AnimationPlayer de CADA modelo (Mannequin e Golem)
-	# uma vez só, no boot. O golem não tem osso "spine" (rig próprio: Head/Chest/Hip/...),
-	# então seu torso-aim simplesmente fica desativado (_golem_torso_bone_idx == -1) — não
-	# tiver osso compatível, não tenta torcer nada. O air_bird ainda não tem AnimationPlayer
-	# nem torso-aim (rig sem clipes por enquanto, ver AIR_BIRD_FACING_FLIP_DEGREES).
+	# Descobre skeleton/osso de torso/AnimationPlayer de CADA modelo (Mannequin, Golem e
+	# air_bird) uma vez só, no boot. O golem não tem osso "spine" (rig próprio:
+	# Head/Chest/Hip/...), então seu torso-aim simplesmente fica desativado
+	# (_golem_torso_bone_idx == -1) — não tiver osso compatível, não tenta torcer nada.
+	# O air_bird tem clipes próprios mas também não tem torso-aim (ver
+	# AIR_BIRD_FACING_FLIP_DEGREES).
 	_mannequin_skeleton = _find_skeleton(mannequin_mesh)
 	if _mannequin_skeleton:
 		_mannequin_torso_bone_idx = _find_torso_bone(_mannequin_skeleton)
 
+	air_bird_animation_player = _find_animation_player(air_bird_mesh)
 	golem_animation_player = _find_animation_player(golem_mesh)
 	_golem_skeleton = _find_skeleton(golem_mesh)
 	if _golem_skeleton:
@@ -422,6 +439,11 @@ func _ready():
 	_skill_hud.setup(self)
 	canvas_layer.add_child(_skill_hud)
 	canvas_layer.move_child(_skill_hud, 0)  # atrás do menu de pause e do resto da HUD
+
+	_health_bar = HealthBar.new()
+	_health_bar.setup(self)
+	canvas_layer.add_child(_health_bar)
+	canvas_layer.move_child(_health_bar, 0)
 
 	_pause_options_menu = OptionsMenu.new()
 	canvas_layer.add_child(_pause_options_menu)
@@ -599,6 +621,7 @@ func _process(delta: float) -> void:
 	if is_air and Input.is_action_just_pressed('skill_e'):
 		Global.cast_ability.rpc_id(1, "tornado", global_position, get_forward_direction())
 		_add_cast_fov_kick()
+		_play_bird_action("Tornado", BIRD_TORNADO_ANIM_HOLD)
 
 	# E (Water): bola grande de água — ao explodir no chão, chove no local por alguns segundos
 	if is_water and Input.is_action_just_pressed('skill_e') and not water_bomb_busy:
@@ -712,6 +735,9 @@ func _physics_process(delta: float) -> void:
 	# Duplo pulo (Air): recarrega ao tocar o chão
 	if is_air and is_on_floor():
 		has_air_jump = true
+
+	if _bird_action_timer > 0.0:
+		_bird_action_timer = max(0.0, _bird_action_timer - delta)
 
 	# Recarrega 1 stack do Air Dash por vez, até o máximo
 	if is_air and air_dash_stacks < AIR_DASH_MAX_STACKS:
@@ -835,7 +861,7 @@ func _physics_process(delta: float) -> void:
 	# Finite state machine de animação (idle/andar/correr/pular/agachar)
 	var horizontal_speed = Vector3(velocity.x, 0, velocity.z).length()
 	var next_anim = animation_fsm.update(delta, is_on_floor(), horizontal_speed, is_crouching)
-	if next_anim != "":
+	if next_anim != "" and _bird_action_timer <= 0.0:
 		_play_animation.rpc(next_anim)
 
 	if is_boulder:
@@ -1119,8 +1145,8 @@ func _apply_player_element(elem: int) -> void:
 	player_element = elem
 
 	# EARTH troca o modelo/rig visível inteiro pro golem de pedra (com suas próprias
-	# animações Walk/Sprint/Jump); AIR usa o air_bird (malha estática por enquanto,
-	# sem AnimationPlayer/torso-aim); FIRE continua no Mannequin de sempre.
+	# animações Walk/Sprint/Jump); AIR usa o air_bird, que tem os mesmos nomes de clipe
+	# mais Glide/Dash/Attack/Tornado (sem torso-aim); FIRE continua no Mannequin de sempre.
 	var use_golem = elem == ElementsEnum.Element.EARTH
 	var use_bird = elem == ElementsEnum.Element.AIR
 	var use_mannequin = not use_golem and not use_bird
@@ -1136,7 +1162,7 @@ func _apply_player_element(elem: int) -> void:
 		_torso_bone_idx = _golem_torso_bone_idx
 	elif use_bird:
 		player_mesh = air_bird_mesh
-		animation_player = null
+		animation_player = air_bird_animation_player
 		_skeleton = null
 		_torso_bone_idx = -1
 	else:
@@ -1267,7 +1293,15 @@ func _update_jump_animation() -> void:
 	# existe um recurso de animação "Jump_Up" separado no golem, só Jump_Ascend/Charge/Descend.
 	var anim_to_play = ""
 
-	if _is_boulder_dash_launching:
+	if _bird_action_timer > 0.0:
+		# Dash/Attack/Tornado mandam enquanto duram; quando acabarem, o clipe de pulo
+		# volta a disparar porque _last_jump_animation foi limpo em _play_bird_action().
+		return
+
+	if is_gliding:
+		# Air: planando (segurando espaço na queda) — asas abertas
+		anim_to_play = "Glide"
+	elif _is_boulder_dash_launching:
 		# Mini pulinho antes do Boulder Dash: toca o Roll em vez do Jump_Ascend normal
 		anim_to_play = "Roll"
 	elif is_charging_leap:
@@ -1291,6 +1325,16 @@ func _update_jump_animation() -> void:
 		_last_jump_animation = anim_to_play
 
 
+# Clipes de ação do air_bird (Dash/Attack/Tornado): tocam e seguram por `hold` segundos,
+# tempo em que nem a FSM de locomoção nem o _update_jump_animation() podem sobrescrever.
+func _play_bird_action(anim_name: String, hold: float) -> void:
+	if player_element != ElementsEnum.Element.AIR:
+		return
+	_bird_action_timer = hold
+	_last_jump_animation = ""  # deixa o pulo re-disparar assim que a ação acabar
+	_play_animation.rpc(anim_name)
+
+
 @rpc("any_peer", "call_local")
 func _play_animation(anim_name: String) -> void:
 	if animation_player and animation_player.has_animation(anim_name):
@@ -1304,15 +1348,16 @@ func get_forward_direction() -> Vector3:
 	return -camera_3d.global_transform.basis.z
 
 
-func take_damage(_amount = 0, _source_peer_id: int = -1, element: int = -1) -> void:
+func take_damage(amount = 0, _source_peer_id: int = -1, element: int = -1) -> void:
 	# Chamado diretamente pelo servidor (autoridade do projétil), então não dá
 	# pra confiar em is_multiplayer_authority() aqui — precisa de RPC pro dono real ver o efeito
-	_apply_damage_effects.rpc_id(int(name), element)
+	_apply_damage_effects.rpc_id(int(name), amount, element)
 
 
 @rpc("any_peer", "call_local")
-func _apply_damage_effects(element: int) -> void:
+func _apply_damage_effects(amount: int, element: int) -> void:
 	_enter_combat()
+	health = maxi(health - amount, 0)
 
 	if is_boulder and boulder_infused_with == -1 and element == ElementsEnum.Element.FIRE:
 		ignite_boulder.rpc()
@@ -1811,6 +1856,7 @@ func _air_dash() -> void:
 	velocity.z = dash_dir.z * AIR_DASH_SPEED
 	velocity.y = max(velocity.y, dash_dir.y * AIR_DASH_SPEED * 0.5)
 	air_dash_timer = AIR_DASH_DURATION
+	_play_bird_action("Dash", BIRD_DASH_ANIM_HOLD)
 
 	# Speed lines com tempo próprio: cheias até AIR_DASH_LINES_HOLD, depois de
 	# 100% a 0% em AIR_DASH_LINES_FADE.
@@ -1825,6 +1871,7 @@ func _air_dash() -> void:
 func _shoot_air_slashes() -> void:
 	is_slashing = true
 	_start_cooldown("lmb", AIR_SLASH_COUNT * AIR_SLASH_INTERVAL)
+	_play_bird_action("Attack", BIRD_ATTACK_ANIM_HOLD)
 
 	for i in range(AIR_SLASH_COUNT):
 		Global.cast_ability.rpc_id(1, "air_slash", global_position, get_forward_direction())
@@ -1871,8 +1918,9 @@ func _update_rock_sling_trajectory() -> void:
 	var charge_power = rock_sling_ability.get_charge_power()
 	spawn_pos += dir * (1.5 * charge_power)
 
-	var launch_velocity = dir * (10.0 * charge_power / 3.0)
-	launch_velocity.y += (10.0 * charge_power) / 3.0
+	# Mesma força do lançamento real (Global.cast_ability), senão a prévia mente
+	var launch_velocity = dir * (Global.ROCK_SLING_LAUNCH_SPEED * charge_power)
+	launch_velocity.y += Global.ROCK_SLING_LAUNCH_SPEED * charge_power
 
 	_show_trajectory_preview(spawn_pos, launch_velocity)
 

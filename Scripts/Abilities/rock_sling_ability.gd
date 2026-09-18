@@ -44,7 +44,7 @@ func cast(player: Node3D, direction: Vector3) -> RockSling:
 	rock.charge_power = get_charge_power()
 
 	# Movimento em arco (lançamento oblíquo)
-	var velocity = direction * base_force * get_charge_power()
+	var velocity = direction * base_force * get_charge_power() * 2
 	velocity.y += 10.0  # Arco inicial
 	rock.linear_velocity = velocity
 

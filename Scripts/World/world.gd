@@ -7,6 +7,10 @@ const TARGET = preload("uid://wj1j5cg0flnj")
 const RANGED_ENEMY = preload("res://Scenes/Entities/ranged_enemy.tscn")
 const MELEE_ENEMY = preload("res://Scenes/Entities/melee_enemy.tscn")
 
+# Spawn de inimigos: 1 por segundo, até o limite de vivos na cena
+const ENEMY_SPAWN_INTERVAL := 1.0
+const MAX_ENEMIES := 80
+
 var enemy_spawn_active := false
 
 func _ready() -> void:
@@ -14,6 +18,7 @@ func _ready() -> void:
 	Global.spawn_container = spawn_container
 	timer_target.timeout.connect(spawn_target)
 	timer_enemy.timeout.connect(spawn_enemy)
+	timer_enemy.wait_time = ENEMY_SPAWN_INTERVAL
 
 
 func spawn_target():
@@ -39,7 +44,7 @@ func toggle_enemy_spawn() -> void:
 
 
 func spawn_enemy():
-	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= 10:
+	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= MAX_ENEMIES:
 		return
 
 	var enemy_scene = RANGED_ENEMY if randf() < 0.5 else MELEE_ENEMY

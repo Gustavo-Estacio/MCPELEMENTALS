@@ -35,5 +35,5 @@ shape = SubResource("CapsuleShape3D_ranged")
 replication_config = SubResource("SceneReplicationConfig_ranged")
 
 [node name="FireTimer" type="Timer" parent="."]
-wait_time = 2.5
+wait_time = 1.0
 autostart = true

@@ -1,18 +1,14 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene format=3 uid="uid://bgmtr1sqkhmdd"]
 
-[ext_resource type="Script" path="res://Scripts/Entities/melee_enemy.gd" id="1_melee"]
+[ext_resource type="Script" uid="uid://c8jbpu6g7lmko" path="res://Scripts/Entities/melee_enemy.gd" id="1_melee"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_melee"]
 albedo_color = Color(0.55, 0.1, 0.75, 1)
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_melee"]
 material = SubResource("StandardMaterial3D_melee")
-radius = 0.5
-height = 2.0
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_melee"]
-radius = 0.5
-height = 2.0
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_melee"]
 properties/0/path = NodePath(".:position")
@@ -25,17 +21,18 @@ properties/2/path = NodePath(".:health")
 properties/2/spawn = true
 properties/2/replication_mode = 2
 
-[node name="MeleeEnemy" type="CharacterBody3D"]
+[node name="MeleeEnemy" type="CharacterBody3D" unique_id=195545345]
 script = ExtResource("1_melee")
+attack_damage = 50
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1371913014]
 mesh = SubResource("CapsuleMesh_melee")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=619056278]
 shape = SubResource("CapsuleShape3D_melee")
 
-[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=969802118]
 replication_config = SubResource("SceneReplicationConfig_melee")
 
-[node name="AttackTimer" type="Timer" parent="."]
+[node name="AttackTimer" type="Timer" parent="." unique_id=1619021413]
 one_shot = true

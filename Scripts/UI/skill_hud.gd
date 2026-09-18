@@ -7,9 +7,9 @@ class_name SkillHUD
 ## A HUD é burra de propósito: todo frame ela lê Player.get_skill_slots() e só
 ## desenha. Quem sabe o que é cooldown, carga ou skill ativa é o Player.
 
-const SLOT_SIZE := Vector2(86.0, 86.0)
-const SLOT_SEPARATION := 10
-const BOTTOM_MARGIN := 24.0
+const SLOT_SIZE := Vector2(43.0, 43.0)
+const SLOT_SEPARATION := 5
+const BOTTOM_MARGIN := 12.0
 const MAX_SLOTS := 6
 const MAX_PIPS := 5
 
@@ -35,7 +35,7 @@ func _ready() -> void:
 	anchor_bottom = 1.0
 	offset_left = 0.0
 	offset_right = 0.0
-	offset_top = -(SLOT_SIZE.y + 36.0 + BOTTOM_MARGIN)
+	offset_top = -(SLOT_SIZE.y + 18.0 + BOTTOM_MARGIN)
 	offset_bottom = -BOTTOM_MARGIN
 	_build()
 
@@ -75,16 +75,16 @@ func _build_slot() -> Control:
 	var pips := HBoxContainer.new()
 	pips.name = "Pips"
 	pips.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	pips.offset_top = -14.0
-	pips.offset_bottom = -6.0
+	pips.offset_top = -7.0
+	pips.offset_bottom = -3.0
 	pips.alignment = BoxContainer.ALIGNMENT_CENTER
-	pips.add_theme_constant_override("separation", 4)
+	pips.add_theme_constant_override("separation", 2)
 	pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slot.add_child(pips)
 
 	for index in MAX_PIPS:
 		var pip := ColorRect.new()
-		pip.custom_minimum_size = Vector2(12.0, 5.0)
+		pip.custom_minimum_size = Vector2(6.0, 2.5)
 		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pips.add_child(pip)
 
@@ -122,18 +122,18 @@ func _build_slot() -> Control:
 	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var border_style := StyleBoxFlat.new()
 	border_style.bg_color = Color(0, 0, 0, 0)
-	border_style.set_border_width_all(2)
-	border_style.set_corner_radius_all(6)
+	border_style.set_border_width_all(1)
+	border_style.set_corner_radius_all(3)
 	border.add_theme_stylebox_override("panel", border_style)
 	slot.add_child(border)
 
 	var key_label := Label.new()
 	key_label.name = "Key"
 	key_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	key_label.offset_top = 6.0
-	key_label.offset_bottom = 28.0
+	key_label.offset_top = 3.0
+	key_label.offset_bottom = 14.0
 	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	key_label.add_theme_font_size_override("font_size", 16)
+	key_label.add_theme_font_size_override("font_size", 8)
 	key_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	key_label.add_theme_constant_override("shadow_offset_x", 1)
 	key_label.add_theme_constant_override("shadow_offset_y", 1)
@@ -145,7 +145,7 @@ func _build_slot() -> Control:
 	time_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	time_label.add_theme_font_size_override("font_size", 20)
+	time_label.add_theme_font_size_override("font_size", 10)
 	time_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	time_label.add_theme_constant_override("shadow_offset_x", 1)
 	time_label.add_theme_constant_override("shadow_offset_y", 1)
@@ -155,10 +155,10 @@ func _build_slot() -> Control:
 	var name_label := Label.new()
 	name_label.name = "SkillName"
 	name_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	name_label.offset_top = -22.0
-	name_label.offset_bottom = -4.0
+	name_label.offset_top = -11.0
+	name_label.offset_bottom = -2.0
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.add_theme_font_size_override("font_size", 6)
 	name_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	name_label.add_theme_constant_override("shadow_offset_x", 1)
 	name_label.add_theme_constant_override("shadow_offset_y", 1)

@@ -14,7 +14,10 @@ func _on_hit(body: Node3D) -> void:
 	if not is_multiplayer_authority():
 		return
 
+	if body.is_in_group('Enemies'):
+		return  # não colide com quem atirou nem com outros inimigos
+
 	if body.is_in_group('Players') and body.has_method('take_damage'):
-		body.take_damage(1, -1)
+		body.take_damage(200, -1)
 
 	queue_free()
