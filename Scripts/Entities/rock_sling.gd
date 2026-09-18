@@ -52,6 +52,12 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var contact_point = state.get_contact_collider_position(0)
 	var contact_normal = state.get_contact_local_normal(0)
 
+	if collider is RockSling:
+		# Duas rochas se esbarrando: só deixa o Jolt resolver o baque físico (agora que
+		# elas se enxergam — ver collision_layer/mask em rock_sling.tscn). Isso NÃO conta
+		# como "pousar": sem decal, sem has_landed, sem queue_free.
+		return
+
 	# O decal só pode marcar chão/parede de verdade — nunca a lateral de uma criatura
 	# (Target, Enemy ou outro Player). O dano em si já foi aplicado em _on_body_entered;
 	# aqui só decide onde a marca visual cai: projeta no chão embaixo do alvo.
@@ -78,17 +84,21 @@ func _on_area_entered(other: Area3D) -> void:
 	if not is_multiplayer_authority():
 		return
 
-	if not (other is RockDecal):
-		return
-
-	if get_instance_id() == other.get_instance_id():
-		return
-
-	# Só processa ElementalCarrier (decals)
+	# ElementalCarrier: reage com um decal no chão OU com outra RockSling (duas pedras
+	# com infusões diferentes se chocando, por exemplo). Numa RockSling, "other" é o
+	# Area3D de detecção dela, não a rocha em si — o dono (owner) é a rocha de verdade.
+	var other_carrier: Node = null
 	if other is RockDecal:
-		var rule = ReactionDatabase.find_rule(element, tag, other.element, other.tag)
-		if rule:
-			ReactionResolver.resolve(self, other)
+		other_carrier = other
+	elif other.owner is RockSling and other.owner != self:
+		other_carrier = other.owner
+
+	if other_carrier == null:
+		return
+
+	var rule = ReactionDatabase.find_rule(element, tag, other_carrier.element, other_carrier.tag)
+	if rule:
+		ReactionResolver.resolve(self, other_carrier)
 
 
 @rpc("any_peer", "call_local")
