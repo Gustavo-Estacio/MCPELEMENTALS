@@ -2,7 +2,8 @@ extends CharacterBody3D
 
 @export var health := 40
 @export var speed := 3.5
-@export var attack_range := 2.2
+@export var attack_range := 2.2  # alcance horizontal (circular, à frente do inimigo)
+@export var attack_vertical_range := 2.0  # dano melee não é global: precisa estar perto na altura também
 @export var attack_damage := 200
 @export var attack_cooldown := 1.5
 
@@ -31,13 +32,20 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var to_target = target.global_position - global_position
+	var vertical_dist = absf(to_target.y)
 	to_target.y = 0
 	var dist = to_target.length()
 
 	if dist > 0.01:
 		look_at(global_position + to_target, Vector3.UP)
 
-	if dist > attack_range:
+	# Alcance circular na horizontal, à frente do inimigo (ele já vira pra encarar o alvo
+	# acima) — mas NUNCA atinge alguém muito acima/abaixo só por estar embaixo/em cima,
+	# senão o soco vira um alcance global na vertical (ex: acertar quem tá numa plataforma
+	# alta só por estar logo abaixo dela).
+	var in_melee_range = dist <= attack_range and vertical_dist <= attack_vertical_range
+
+	if not in_melee_range:
 		var dir = to_target.normalized()
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
