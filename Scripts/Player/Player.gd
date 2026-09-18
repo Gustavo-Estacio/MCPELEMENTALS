@@ -1426,10 +1426,12 @@ func get_forward_direction() -> Vector3:
 
 
 func take_damage(amount = 0, source_peer_id: int = -1, element: int = -1) -> void:
-	# Sem PvP: todo dano vindo de habilidade de player carrega o peer_id de quem lançou
-	# (sempre > 0 — ver owner_peer_id/caster_peer_id nos projéteis); inimigos passam -1.
-	# Só ignora quando a fonte é OUTRO player; dano em si mesmo e dano de inimigo continuam.
-	if source_peer_id > 0 and source_peer_id != int(name):
+	# Sem dano de habilidade de player em player, NENHUMA — nem em si mesmo (ex: RMB do
+	# golem, cujas rochas nascem perto o bastante do próprio caster pra acertá-lo). Todo
+	# dano de habilidade de player carrega o peer_id de quem lançou (sempre > 0 — ver
+	# owner_peer_id/caster_peer_id nos projéteis); inimigos passam -1, esses continuam
+	# valendo normalmente.
+	if source_peer_id > 0:
 		return
 
 	# Chamado diretamente pelo servidor (autoridade do projétil), então não dá
