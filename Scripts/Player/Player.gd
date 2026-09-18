@@ -52,6 +52,7 @@ var health := max_health
 @export var BOULDER_IMPACT_SHAKE_MIN_FRACTION := 0.35  # trauma mínimo garantido mesmo num toque fraco na parede
 @export var ROLL_ANIM_SPEED_MULTIPLIER := 1.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
+@export var BOULDER_CRUSH_DAMAGE := 300  # dano nos inimigos atropelados pelo Boulder Dash (uma vez cada, por dash)
 
 @export_group("Fire Dash (Fire Shift)")
 @export var FIRE_DASH_DURATION := 5.0
@@ -70,6 +71,10 @@ var health := max_health
 
 @export_group("Punch Combo (LMB Earth)")
 @export var LMB_SHOT_INTERVAL := 0.12
+@export var MELEE_DAMAGE := 40
+@export var MELEE_RANGE := 3.0  # alcance horizontal do soco
+@export var MELEE_VERTICAL_RANGE := 2.0  # não acerta quem está muito acima/abaixo
+@export var MELEE_MIN_FACING_DOT := 0.25  # ~75° pra cada lado da direção que o player encara
 
 @export_group("Rock Barrage (RMB Earth)")
 @export var RMB_SHOT_INTERVAL := 0.15
@@ -293,6 +298,13 @@ var _boulder_base_speed := 0.0  # velocidade "atual" no instante em que o dash c
 var _boulder_launch_boost_timer := 0.0  # empurrão extra pra frente, decaindo linearmente até 0 em BOULDER_LAUNCH_BOOST_DURATION
 var _boulder_bounce_cooldown := 0.0  # evita quicar de novo enquanto ainda encostado na mesma parede
 var _boulder_bounce_turn_rate_timer := 0.0  # turn rate reduzido enquanto > 0, contando pra baixo depois de um quique
+var _boulder_crushed_enemies: Array = []  # já tomaram dano nesse dash, não bate de novo no mesmo
+
+# Corpos com colisão física ignorada temporariamente (add_collision_exception_with) —
+# Boulder Dash atropela inimigos em vez de quicar neles, Earth Leap atravessa qualquer
+# entidade até encostar no chão de verdade. Compartilhado porque as duas ações nunca
+# rodam ao mesmo tempo (uma usa Shift, a outra Space+segurar parado).
+var _ignored_collision_bodies: Array = []
 
 # Camera shake (trauma-based, like the common Godot "screen shake" recipe)
 var shake_trauma := 0.0
@@ -897,7 +909,11 @@ func _physics_process(delta: float) -> void:
 		_end_water_bubble()
 
 	if is_boulder:
+		_crush_boulder_enemies()
 		_update_boulder_wall_bounce(delta)
+
+	if is_leaping:
+		_ignore_leap_collisions()
 
 	# Finite state machine de animação (idle/andar/correr/pular/agachar)
 	var horizontal_speed = Vector3(velocity.x, 0, velocity.z).length()
@@ -929,6 +945,7 @@ func _physics_process(delta: float) -> void:
 		is_leaping = false
 		add_camera_shake(LANDING_SHAKE_TRAUMA)
 		Global.spawn_earth_leap_decal.rpc_id(1, global_position)
+		_restore_ignored_collisions()
 
 	# Animações de pulo (Jump_Charge, Jump_Ascend, Jump_Descend)
 	_update_jump_animation()
@@ -961,12 +978,19 @@ func _apply_boulder_movement(direction: Vector3, current_speed: float, delta: fl
 # velocidade e reinicia a rampa (_boulder_base_speed vira a velocidade já reduzida, rampa
 # de novo entre 50% e 200% dela, exatamente como no início do dash).
 func _update_boulder_wall_bounce(delta: float) -> void:
+	# Inimigos nunca contam como parede: o Boulder Dash atropela em vez de quicar (ver
+	# _crush_boulder_enemies, chamado antes daqui em _physics_process). Só sobra pra cá
+	# decidir quicar em cima de paredes/props de verdade.
 	if _boulder_bounce_cooldown > 0.0:
 		_boulder_bounce_cooldown -= delta
 		return
 
 	for i in get_slide_collision_count():
 		var collision = get_slide_collision(i)
+		var collider = collision.get_collider()
+		if collider and collider.is_in_group("Enemies"):
+			continue
+
 		var normal = collision.get_normal()
 		if absf(normal.y) > 0.5:
 			continue  # chão/teto, não é parede
@@ -985,6 +1009,46 @@ func _update_boulder_wall_bounce(delta: float) -> void:
 		_boulder_bounce_cooldown = BOULDER_BOUNCE_COOLDOWN
 		add_camera_shake(BOULDER_IMPACT_SHAKE_TRAUMA * impact_fraction)
 		break
+
+
+# Boulder Dash "amassa" inimigos: ignora a colisão física com eles (pra não travar/quicar
+# neles como se fossem parede) e causa dano uma vez por inimigo, por dash.
+func _crush_boulder_enemies() -> void:
+	for i in get_slide_collision_count():
+		var collider = get_slide_collision(i).get_collider()
+		if not (collider and collider.is_in_group("Enemies")):
+			continue
+
+		if not _ignored_collision_bodies.has(collider):
+			add_collision_exception_with(collider)
+			_ignored_collision_bodies.append(collider)
+
+		if not _boulder_crushed_enemies.has(collider) and collider.has_method("take_damage"):
+			_boulder_crushed_enemies.append(collider)
+			# source = o próprio peer_id de quem tá no Boulder: take_damage do inimigo
+			# procura um Player com esse nome pra creditar o hit — passar -1 (convenção de
+			# "é um inimigo atacando") faria a busca falhar e o dano nem ser aplicado.
+			collider.take_damage(BOULDER_CRUSH_DAMAGE, int(name))
+
+
+# Earth Leap atravessa qualquer entidade até encostar no chão de verdade — sem isso o
+# pouso (e o decal que vem junto) podia acontecer em cima de um inimigo/alvo, com o decal
+# flutuando no ar.
+func _ignore_leap_collisions() -> void:
+	for i in get_slide_collision_count():
+		var collider = get_slide_collision(i).get_collider()
+		if not collider or _ignored_collision_bodies.has(collider):
+			continue
+		if collider.is_in_group("Enemies") or collider.is_in_group("Targets") or collider.is_in_group("Players"):
+			add_collision_exception_with(collider)
+			_ignored_collision_bodies.append(collider)
+
+
+func _restore_ignored_collisions() -> void:
+	for body in _ignored_collision_bodies:
+		if is_instance_valid(body):
+			remove_collision_exception_with(body)
+	_ignored_collision_bodies.clear()
 
 
 func _update_model_facing(direction: Vector3, delta: float) -> void:
@@ -1314,9 +1378,33 @@ func _shoot_lmb() -> void:
 		lmb_wave_count += 1
 
 	_play_animation.rpc(combo_anim)
+	_melee_hit()
 	await get_tree().create_timer(LMB_SHOT_INTERVAL).timeout
 
 	lmb_busy = false
+
+
+# O soco do LMB só tocava a animação, sem causar dano nenhum. Alcance curto e circular
+# à frente do player (mesma ideia do ataque do MeleeEnemy): precisa estar perto na
+# horizontal E na altura, senão soco no chão acertaria quem está numa plataforma acima.
+func _melee_hit() -> void:
+	var forward = _get_horizontal_forward()
+	for enemy in get_tree().get_nodes_in_group('Enemies'):
+		if not is_instance_valid(enemy) or not enemy.has_method('take_damage'):
+			continue
+
+		var to_enemy = enemy.global_position - global_position
+		if absf(to_enemy.y) > MELEE_VERTICAL_RANGE:
+			continue
+
+		var flat = Vector3(to_enemy.x, 0, to_enemy.z)
+		if flat.length() > MELEE_RANGE:
+			continue
+		# Só o que está à frente (semicírculo), não nas costas
+		if flat.length() > 0.01 and forward.dot(flat.normalized()) < MELEE_MIN_FACING_DOT:
+			continue
+
+		enemy.take_damage(MELEE_DAMAGE, int(name), ElementsEnum.Element.EARTH)
 
 
 # RMB: 2 projéteis grandes por clique, depois recarrega.
@@ -1450,6 +1538,23 @@ func _apply_damage_effects(amount: int, element: int) -> void:
 
 	if is_boulder and boulder_infused_with == -1 and element == ElementsEnum.Element.FIRE:
 		ignite_boulder.rpc()
+
+
+# Habilidades de água curam players em vez de causar dano neles (ver water_pellet,
+# jet_stream, puddle_punch, water_bomb, rain_zone). Nos inimigos elas continuam
+# causando dano normal.
+func heal(amount: int) -> void:
+	if amount <= 0 or health >= max_health:
+		return
+
+	Global.spawn_damage_number.rpc_id(1, global_position + Vector3(0, 1.7, 0), amount,
+		Global.HEAL_NUMBER_TINT)
+	_apply_heal.rpc_id(int(name), amount)
+
+
+@rpc("any_peer", "call_local")
+func _apply_heal(amount: int) -> void:
+	health = mini(health + amount, max_health)
 
 
 func _enter_combat() -> void:
@@ -1591,6 +1696,7 @@ func _start_boulder_dash() -> void:
 	boulder_distance_traveled = 0.0
 	boulder_infused_with = -1
 	_boulder_decal_timer = 0.0
+	_boulder_crushed_enemies.clear()
 	_boulder_time_expired = false
 	_boulder_was_airborne = false
 	_boulder_roll_dir = _get_horizontal_forward()
@@ -1612,6 +1718,7 @@ func _end_boulder_dash() -> void:
 	_clear_cooldown("shift")
 	_set_boulder_visual.rpc(false)
 	_reset_golem_foliage.rpc()  # segunda rede de segurança: cobre cancelar o dash ainda no mini-pulinho
+	_restore_ignored_collisions()
 
 
 @rpc("any_peer", "call_local")

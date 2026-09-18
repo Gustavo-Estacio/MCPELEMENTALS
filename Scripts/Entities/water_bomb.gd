@@ -12,6 +12,7 @@ var has_landed := false
 
 @export var SPIN_SPEED := 6.0
 @export var SPLASH_DAMAGE := 20
+@export var SPLASH_HEAL := 20  # em player, agua cura em vez de machucar
 @export var SPLASH_RADIUS := 3.0
 
 
@@ -26,7 +27,10 @@ func _on_body_entered(body: Node3D) -> void:
 	if not is_multiplayer_authority():
 		return
 
-	if body.has_method('take_damage'):
+	# Agua cura player e machuca inimigo (ver Player.heal)
+	if body.is_in_group('Players') and body.has_method('heal'):
+		body.heal(SPLASH_HEAL)
+	elif body.has_method('take_damage'):
 		body.take_damage(SPLASH_DAMAGE, owner_peer_id, element)
 
 

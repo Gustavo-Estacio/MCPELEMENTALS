@@ -5,6 +5,7 @@ class_name WindTorrent
 @export var SPEED := 17.5  # +75% de velocidade
 @export var LIFETIME := 2.5
 @export var WIND_PUSH_STRENGTH := 13.33  # empurrão único somado ao vetor de movimento da habilidade "moveable" (1/3 da força anterior)
+@export var DAMAGE := 10  # o empurrão também machuca quem ele atravessa
 
 var element: int = 3  # ElementsEnum.Element.AIR
 var tag: String = "projectile"
@@ -25,6 +26,7 @@ func setup(spawn_pos: Vector3, direction: Vector3) -> void:
 
 func _ready() -> void:
 	area_3d.area_entered.connect(_on_area_entered)
+	area_3d.body_entered.connect(_on_body_entered)
 	particles.restart()
 
 	if is_multiplayer_authority():
@@ -32,6 +34,16 @@ func _ready() -> void:
 			if is_instance_valid(self):
 				queue_free()
 		)
+
+
+# O vento não só empurra: quem ele atravessa também leva dano (uma vez por corpo).
+func _on_body_entered(body: Node3D) -> void:
+	if not is_multiplayer_authority() or _already_pushed.has(body):
+		return
+
+	if body.has_method('take_damage'):
+		_already_pushed.append(body)
+		body.take_damage(DAMAGE, owner_peer_id, element)
 
 
 func _on_area_entered(other: Area3D) -> void:

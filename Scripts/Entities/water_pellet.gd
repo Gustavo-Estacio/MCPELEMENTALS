@@ -11,6 +11,8 @@ var owner_peer_id: int = -1
 var has_collided := false
 
 @export var LIFETIME := 3.0
+@export var DAMAGE := 8
+@export var HEAL := 8  # em player, agua cura em vez de machucar
 
 
 func _ready() -> void:
@@ -27,8 +29,11 @@ func _on_body_entered(body: Node3D) -> void:
 	if not is_multiplayer_authority():
 		return
 
-	if body.has_method('take_damage'):
-		body.take_damage(8, owner_peer_id, element)
+	# Agua cura player e machuca inimigo (ver Player.heal)
+	if body.is_in_group('Players') and body.has_method('heal'):
+		body.heal(HEAL)
+	elif body.has_method('take_damage'):
+		body.take_damage(DAMAGE, owner_peer_id, element)
 
 	_on_impact()
 

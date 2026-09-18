@@ -7,6 +7,7 @@ class_name PuddlePunch
 @export var DISC_THICKNESS := 0.6  # espessura do disco ao longo da normal
 @export var PUSH_FORCE := 14.0
 @export var DAMAGE := 15
+@export var HEAL := 15  # em player, agua cura em vez de machucar
 @export var LIFETIME_AFTER_PUNCH := 1.0
 
 @onready var puddle_mesh: MeshInstance3D = $PuddleMesh
@@ -65,7 +66,10 @@ func _punch() -> void:
 		if body.has_method('apply_knockback'):
 			already_hit.append(body)
 			body.apply_knockback.rpc_id(int(body.name), push_dir, PUSH_FORCE)
-			if body.has_method('take_damage') and body.name != str(owner_peer_id):
+			# Agua cura player e machuca inimigo (ver Player.heal)
+			if body.is_in_group('Players') and body.has_method('heal'):
+				body.heal(HEAL)
+			elif body.has_method('take_damage') and body.name != str(owner_peer_id):
 				body.take_damage(DAMAGE, owner_peer_id, ElementsEnum.Element.WATER)
 		elif body is RigidBody3D and "is_moveable" in body and body.is_moveable:
 			already_hit.append(body)

@@ -5,6 +5,7 @@ class_name JetStream
 @export var SPEED := 28.0
 @export var LIFETIME := 1.2
 @export var DAMAGE := 18
+@export var HEAL := 18  # em player, agua cura em vez de machucar
 @export var PUSH_STRENGTH := 16.0  # empurrão único somado ao vetor de movimento de habilidades "moveable"
 
 var element: int = ElementsEnum.Element.WATER
@@ -43,7 +44,10 @@ func _on_body_entered(body: Node3D) -> void:
 
 	_already_hit.append(body)
 
-	if body.has_method('take_damage'):
+	# Agua cura player e machuca inimigo (ver Player.heal)
+	if body.is_in_group('Players') and body.has_method('heal'):
+		body.heal(HEAL)
+	elif body.has_method('take_damage'):
 		body.take_damage(DAMAGE, owner_peer_id, element)
 
 

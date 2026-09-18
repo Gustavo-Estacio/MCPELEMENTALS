@@ -17,6 +17,17 @@ const ROCK_MAX_CHARGE_POWER := 2.5
 const ROCK_SLING_LAUNCH_SPEED := 4.9
 
 
+# Decal/poça/zona no chão NUNCA pode ficar grudado num inimigo/player/alvo flutuando —
+# projeta pra baixo até achar chão/parede de verdade e usa esse ponto. Sem chão embaixo
+# (buraco, borda de plataforma), cai de volta pro ponto original em vez de sumir no ar.
+func _project_to_ground(pos: Vector3, exclude_rids: Array[RID] = []) -> Vector3:
+	var space_state = spawn_container.get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 3.0, pos - Vector3.UP * 50.0)
+	query.exclude = exclude_rids
+	var result = space_state.intersect_ray(query)
+	return result.position if result else pos
+
+
 func rock_scale_factor(charge_power: float) -> float:
 	return 1.0 + (charge_power - 1.0) * 9.0
 
@@ -47,6 +58,7 @@ const DAMAGE_NUMBER = preload("res://Scenes/Effects/damage_number.tscn")
 # pálido quando é inimigo/alvo — ajuda a distinguir dano recebido de dano causado.
 const DAMAGE_NUMBER_PLAYER_TINT := Color(1.0, 0.25, 0.2)
 const DAMAGE_NUMBER_ENEMY_TINT := Color(1.0, 0.92, 0.55)
+const HEAL_NUMBER_TINT := Color(0.3, 1.0, 0.45)  # cura das habilidades de água
 
 
 # Chamado por qualquer peer via rpc_id(1, ...); só o servidor (autoridade do Global)
@@ -380,8 +392,8 @@ func spawn_water_puddle(pos: Vector3) -> void:
 
 	var decal_scene = preload("res://Scenes/Effects/water_puddle.tscn")
 	var decal = decal_scene.instantiate()
-	decal.position = pos
 	spawn_container.add_child(decal, true)
+	decal.global_position = _project_to_ground(pos)
 
 
 # Water E: chamada pelo WaterBomb ao pousar — chove no local do impacto por alguns segundos.
@@ -392,8 +404,8 @@ func spawn_rain_zone(pos: Vector3) -> void:
 
 	var rain_scene = preload("res://Scenes/Effects/rain_zone.tscn")
 	var rain = rain_scene.instantiate()
-	rain.position = pos
 	spawn_container.add_child(rain, true)
+	rain.global_position = _project_to_ground(pos)
 
 
 # Pedra de terra não-carregável (sem hold), usada pelo LMB/RMB. Nunca é ignitável.
@@ -428,10 +440,10 @@ func spawn_earth_leap_decal(pos: Vector3) -> void:
 
 	var decal_scene = preload("res://Scenes/Effects/rock_decal.tscn")
 	var decal = decal_scene.instantiate()
-	decal.position = pos
 	decal.scale = Vector3.ONE * rock_scale_factor(ROCK_MAX_CHARGE_POWER)
 	decal.element = 2  # EARTH
 	spawn_container.add_child(decal, true)
+	decal.global_position = _project_to_ground(pos)
 
 
 @rpc("any_peer", "call_local")
@@ -441,8 +453,8 @@ func spawn_boulder_decal(pos: Vector3, infused_with: int = -1, decal_scale: floa
 
 	var decal_scene = preload("res://Scenes/Effects/rock_decal.tscn")
 	var decal = decal_scene.instantiate()
-	decal.position = pos
 	decal.scale = Vector3.ONE * decal_scale
 	decal.element = 2  # EARTH
 	decal.infused_with = infused_with
 	spawn_container.add_child(decal, true)
+	decal.global_position = _project_to_ground(pos)

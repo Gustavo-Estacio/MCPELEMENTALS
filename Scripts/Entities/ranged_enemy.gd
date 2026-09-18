@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 @export var health := 30
-@export var speed := 3.0
+@export var speed := 6.0  # dobro do original (3.0)
 @export var fire_range := 15.0
 @export var preferred_distance := 9.0  # mantém essa distância do alvo (persegue se longe, recua se perto)
 @export var retreat_margin := 2.0
