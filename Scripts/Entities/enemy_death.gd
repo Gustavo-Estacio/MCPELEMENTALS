@@ -39,6 +39,12 @@ static func start(enemy: CharacterBody3D, mesh: MeshInstance3D) -> void:
 	if not is_instance_valid(enemy):
 		return
 
+	# Cadáver some de TODA detecção: layer 0 não bate com máscara nenhuma, então nem
+	# projétil, nem área de habilidade, nem soco encosta nele enquanto ele cai e espera o
+	# dissolve. A collision_mask continua valendo, então ele ainda cai no chão normalmente
+	# (mesmo truque assimétrico que o rock_sling já usava).
+	enemy.collision_layer = 0
+
 	var drive_physics := enemy.is_multiplayer_authority()
 	var topple_axis := Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)).normalized()
 	var start_rotation := enemy.rotation
