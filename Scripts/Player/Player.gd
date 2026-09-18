@@ -77,7 +77,8 @@ var health := max_health
 @export var MELEE_RANGE := 3.0  # alcance horizontal do soco
 @export var MELEE_VERTICAL_RANGE := 2.0  # não acerta quem está muito acima/abaixo
 @export var MELEE_MIN_FACING_DOT := 0.25  # ~75° pra cada lado da direção que o player encara
-@export var MELEE_STAGE_DURATION := 0.42  # duração de cada golpe do combo (e janela pra emendar o próximo)
+@export var MELEE_STAGE_DURATION := 0.42  # duração de cada golpe do combo
+@export var MELEE_COMBO_GRACE := 0.5  # tempo extra DEPOIS do golpe pra emendar o próximo
 # Fatias do clipe "PunchCombo" do golem (2.5s com os 3 golpes): soco 1, soco 2, uppercut.
 const GOLEM_PUNCH_SEGMENTS := [Vector2(0.0, 0.83), Vector2(0.83, 1.67), Vector2(1.67, 2.5)]
 
@@ -111,6 +112,8 @@ const GOLEM_PUNCH_SEGMENTS := [Vector2(0.0, 0.83), Vector2(0.83, 1.67), Vector2(
 @export var AQUA_LINK_FOLLOW_LERP := 40.0  # 4x mais rapido que o original (10.0)
 @export var AQUA_LINK_RISE_SPEED := 0.8  # sobe devagar enquanto grudado, feito uma bolha
 @export var AQUA_LINK_MAX_RISE := 6.0  # altura maxima acumulada da subida
+@export var AQUA_LINK_HEAL_PER_TICK := 25  # cura por tick enquanto o link esta ativo
+@export var AQUA_LINK_HEAL_INTERVAL := 0.5
 @export var BUBBLE_SPEED_MULTIPLIER := 0.3
 
 const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
@@ -363,6 +366,7 @@ var is_water_linked := false
 var water_link_target: Player = null
 var water_link_timer := 0.0
 var _water_link_rise := 0.0  # altura ja acumulada pela subida lenta do link
+var _water_link_heal_timer := 0.0
 # Espaço que ativou o link/bolha não pode valer como "subir": sem isso, pular e segurar
 # espaço deixava o jogador flutuando pra cima assim que a bolha aparecia.
 var _water_space_needs_release := false
@@ -1412,8 +1416,18 @@ func _shoot_lmb() -> void:
 		_melee_hit()
 		await get_tree().create_timer(MELEE_STAGE_DURATION).timeout
 
-		# Só continua o combo se clicou de novo durante o golpe e ainda tem golpe na sequência
-		if not _melee_queued or _melee_stage >= GOLEM_PUNCH_SEGMENTS.size():
+		if _melee_stage >= GOLEM_PUNCH_SEGMENTS.size():
+			break
+
+		# Janela extra depois do golpe terminar: dá pra clicar um pouco atrasado e o combo
+		# ainda emenda. Sem isso só valia o clique DENTRO dos 0.42s do golpe, o que na
+		# prática era quase impossível de acertar.
+		var grace := 0.0
+		while not _melee_queued and grace < MELEE_COMBO_GRACE:
+			await get_tree().process_frame
+			grace += get_process_delta_time()
+
+		if not _melee_queued:
 			break
 
 	_melee_stage = 0
@@ -2068,6 +2082,7 @@ func _start_water_link(ally: Player) -> void:
 	water_link_target = ally
 	water_link_timer = 0.0
 	_water_link_rise = 0.0
+	_water_link_heal_timer = 0.0
 	_water_space_needs_release = true
 	velocity = Vector3.ZERO
 	_set_water_link_visual.rpc(true)
@@ -2093,6 +2108,14 @@ func _update_water_link(delta: float) -> void:
 	_water_link_rise = minf(_water_link_rise + AQUA_LINK_RISE_SPEED * delta, AQUA_LINK_MAX_RISE)
 	var target_pos = water_link_target.global_position + Vector3(0, 1.6 + _water_link_rise, 0)
 	global_position = global_position.lerp(target_pos, clamp(AQUA_LINK_FOLLOW_LERP * delta, 0.0, 1.0))
+
+	# Cura contínua enquanto o link está ativo: cura o aliado grudado e quem grudou.
+	_water_link_heal_timer += delta
+	if _water_link_heal_timer >= AQUA_LINK_HEAL_INTERVAL:
+		_water_link_heal_timer = 0.0
+		if water_link_target.has_method('heal'):
+			water_link_target.heal(AQUA_LINK_HEAL_PER_TICK)
+		heal(AQUA_LINK_HEAL_PER_TICK)
 
 	if water_link_timer >= AQUA_LINK_DURATION:
 		_end_water_link()

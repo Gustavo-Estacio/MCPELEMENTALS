@@ -58,26 +58,21 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		# como "pousar": sem decal, sem has_landed, sem queue_free.
 		return
 
-	# O decal só pode marcar chão/parede de verdade — nunca a lateral de uma criatura
-	# (Target, Enemy ou outro Player). O dano em si já foi aplicado em _on_body_entered;
-	# aqui só decide onde a marca visual cai: projeta no chão embaixo do alvo.
-	var hit_creature = collider and (collider.is_in_group("Targets")
-		or collider.is_in_group("Enemies") or collider.is_in_group("Players"))
-
-	if hit_creature:
-		var space_state = get_world_3d().direct_space_state
-		var query = PhysicsRayQueryParameters3D.create(
-			collider.global_position,
-			collider.global_position - Vector3.UP * 100.0
-		)
-		query.exclude = [collider.get_rid()]
-		var result = space_state.intersect_ray(query)
-		if result:
-			_spawn_decal_and_cleanup(result.position, result.normal)
-		else:
-			_spawn_decal_and_cleanup()  # sem chão embaixo: não cria decal no ar
-	else:
+	# O decal só pode marcar chão/parede de verdade. Só o contato com geometria estática
+	# (StaticBody3D: chão, parede, plataforma) vale como ponto de decal direto; qualquer
+	# outra coisa — criatura, prop dinâmico — manda procurar o chão embaixo ignorando TODA
+	# entidade (Global.find_ground_hit), senão num monte de inimigos o raio parava na
+	# cabeça do vizinho e o decal ficava boiando no ar.
+	if collider is StaticBody3D:
 		_spawn_decal_and_cleanup(contact_point, contact_normal)
+		return
+
+	var origin = collider.global_position if collider else global_position
+	var ground = Global.find_ground_hit(origin, [get_rid()])
+	if ground:
+		_spawn_decal_and_cleanup(ground.position, ground.normal)
+	else:
+		_spawn_decal_and_cleanup()  # sem chão embaixo: não cria decal no ar
 
 
 func _on_area_entered(other: Area3D) -> void:

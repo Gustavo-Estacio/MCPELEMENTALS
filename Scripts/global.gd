@@ -20,13 +20,14 @@ const ROCK_SLING_LAUNCH_SPEED := 4.9
 # Decal/poça/zona no chão NUNCA pode ficar grudado num inimigo/player/alvo flutuando —
 # projeta pra baixo até achar chão/parede de verdade e usa esse ponto. Sem chão embaixo
 # (buraco, borda de plataforma), cai de volta pro ponto original em vez de sumir no ar.
-func _project_to_ground(pos: Vector3, exclude_rids: Array[RID] = []) -> Vector3:
+func find_ground_hit(pos: Vector3, exclude_rids: Array[RID] = []) -> Dictionary:
 	var space_state = spawn_container.get_world_3d().direct_space_state
-	var query = PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 3.0, pos - Vector3.UP * 50.0)
+	var query = PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 3.0, pos - Vector3.UP * 200.0)
 
 	# Ignora TODA entidade no caminho do raio, senão ele para no próprio corpo de quem
 	# chamou (o player tem a origem no meio da cápsula, então a poça saía na altura da
-	# cabeça em vez de no chão) ou em cima de um inimigo que estivesse embaixo.
+	# cabeça em vez de no chão) ou em cima de outro inimigo do monte — era isso que fazia
+	# decal nascer boiando na altura do peito de quem estava por perto.
 	var excludes: Array[RID] = exclude_rids.duplicate()
 	for group in ["Players", "Enemies", "Targets"]:
 		for body in get_tree().get_nodes_in_group(group):
@@ -34,7 +35,11 @@ func _project_to_ground(pos: Vector3, exclude_rids: Array[RID] = []) -> Vector3:
 				excludes.append(body.get_rid())
 	query.exclude = excludes
 
-	var result = space_state.intersect_ray(query)
+	return space_state.intersect_ray(query)
+
+
+func _project_to_ground(pos: Vector3, exclude_rids: Array[RID] = []) -> Vector3:
+	var result = find_ground_hit(pos, exclude_rids)
 	return result.position if result else pos
 
 
