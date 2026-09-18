@@ -78,6 +78,17 @@ corner_radius_bottom_left = 5
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_elembar"]
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_landing_shadow"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0, 0, 0, 0.35)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_landing_shadow"]
+material = SubResource("StandardMaterial3D_landing_shadow")
+top_radius = 0.55
+bottom_radius = 0.55
+height = 0.02
+
 [node name="Player" type="CharacterBody3D" unique_id=1300761473]
 collision_layer = 2
 script = ExtResource("1_xhfnw")
@@ -102,6 +113,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 visible = false
 
 [node name="BoulderModel" parent="BoulderMesh" unique_id=704362926 instance=ExtResource("10_boulder")]
+
+[node name="LandingShadow" type="MeshInstance3D" parent="." unique_id=1447120933]
+top_level = true
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_landing_shadow")
 
 [node name="TrajectoryIndicator" type="MultiMeshInstance3D" parent="." unique_id=1980269689]
 visible = false

@@ -2,15 +2,26 @@ extends Area3D
 
 class_name WaterPuddle
 
+## Poça deixada pelo Water Dash: sempre no chão (Global._project_to_ground). Quem pisa
+## nela corre mais rápido e vai se curando aos poucos.
+
 var element: int = ElementsEnum.Element.WATER
 var tag: String = "decal"
 
 @export var LIFETIME := 4.0
+@export var SPEED_MULTIPLIER := 1.5  # movespeed de quem está em cima da poça
+@export var HEAL_PER_TICK := 6
+@export var HEAL_INTERVAL := 0.5
+
+var _players_inside: Array = []
+var _heal_timer := 0.0
 
 
 func _ready() -> void:
 	collision_layer = 0
-	collision_mask = 0
+	collision_mask = 2  # só players (ver Player.tscn, collision_layer = 2)
+	body_entered.connect(_on_body_entered)
+	body_exited.connect(_on_body_exited)
 
 	var tween = create_tween()
 	tween.tween_interval(LIFETIME * 0.6)
@@ -19,3 +30,43 @@ func _ready() -> void:
 		if is_instance_valid(self):
 			queue_free()
 	)
+
+
+func _exit_tree() -> void:
+	# A poça pode sumir com alguém em cima: tira o buff de todo mundo antes de morrer.
+	for player in _players_inside:
+		if is_instance_valid(player) and player.has_method("set_puddle_speed_bonus"):
+			player.set_puddle_speed_bonus(1.0)
+	_players_inside.clear()
+
+
+func _on_body_entered(body: Node3D) -> void:
+	if not body.is_in_group('Players') or _players_inside.has(body):
+		return
+
+	_players_inside.append(body)
+	if body.has_method("set_puddle_speed_bonus"):
+		body.set_puddle_speed_bonus(SPEED_MULTIPLIER)
+
+
+func _on_body_exited(body: Node3D) -> void:
+	if not _players_inside.has(body):
+		return
+
+	_players_inside.erase(body)
+	if is_instance_valid(body) and body.has_method("set_puddle_speed_bonus"):
+		body.set_puddle_speed_bonus(1.0)
+
+
+func _process(delta: float) -> void:
+	if _players_inside.is_empty():
+		return
+
+	_heal_timer += delta
+	if _heal_timer < HEAL_INTERVAL:
+		return
+	_heal_timer = 0.0
+
+	for player in _players_inside:
+		if is_instance_valid(player) and player.has_method("heal"):
+			player.heal(HEAL_PER_TICK)

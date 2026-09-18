@@ -23,7 +23,17 @@ const ROCK_SLING_LAUNCH_SPEED := 4.9
 func _project_to_ground(pos: Vector3, exclude_rids: Array[RID] = []) -> Vector3:
 	var space_state = spawn_container.get_world_3d().direct_space_state
 	var query = PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 3.0, pos - Vector3.UP * 50.0)
-	query.exclude = exclude_rids
+
+	# Ignora TODA entidade no caminho do raio, senão ele para no próprio corpo de quem
+	# chamou (o player tem a origem no meio da cápsula, então a poça saía na altura da
+	# cabeça em vez de no chão) ou em cima de um inimigo que estivesse embaixo.
+	var excludes: Array[RID] = exclude_rids.duplicate()
+	for group in ["Players", "Enemies", "Targets"]:
+		for body in get_tree().get_nodes_in_group(group):
+			if body is CollisionObject3D:
+				excludes.append(body.get_rid())
+	query.exclude = excludes
+
 	var result = space_state.intersect_ray(query)
 	return result.position if result else pos
 

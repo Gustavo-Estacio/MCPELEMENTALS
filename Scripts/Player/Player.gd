@@ -52,6 +52,7 @@ var health := max_health
 @export var BOULDER_IMPACT_SHAKE_MIN_FRACTION := 0.35  # trauma mínimo garantido mesmo num toque fraco na parede
 @export var ROLL_ANIM_SPEED_MULTIPLIER := 1.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
+@export var LANDING_SHADOW_MAX_DISTANCE := 40.0  # alcance do raycast da sombra de pouso
 @export var BOULDER_CRUSH_DAMAGE := 300  # dano nos inimigos atropelados pelo Boulder Dash (uma vez cada, por dash)
 
 @export_group("Fire Dash (Fire Shift)")
@@ -75,6 +76,9 @@ var health := max_health
 @export var MELEE_RANGE := 3.0  # alcance horizontal do soco
 @export var MELEE_VERTICAL_RANGE := 2.0  # não acerta quem está muito acima/abaixo
 @export var MELEE_MIN_FACING_DOT := 0.25  # ~75° pra cada lado da direção que o player encara
+@export var MELEE_STAGE_DURATION := 0.42  # duração de cada golpe do combo (e janela pra emendar o próximo)
+# Fatias do clipe "PunchCombo" do golem (2.5s com os 3 golpes): soco 1, soco 2, uppercut.
+const GOLEM_PUNCH_SEGMENTS := [Vector2(0.0, 0.83), Vector2(0.83, 1.67), Vector2(1.67, 2.5)]
 
 @export_group("Rock Barrage (RMB Earth)")
 @export var RMB_SHOT_INTERVAL := 0.15
@@ -103,7 +107,9 @@ var health := max_health
 @export_group("Aqua Link / Bubble (Water Space)")
 @export var AQUA_LINK_DURATION := 5.0
 @export var AQUA_LINK_RANGE := 15.0
-@export var AQUA_LINK_FOLLOW_LERP := 10.0
+@export var AQUA_LINK_FOLLOW_LERP := 40.0  # 4x mais rapido que o original (10.0)
+@export var AQUA_LINK_RISE_SPEED := 0.8  # sobe devagar enquanto grudado, feito uma bolha
+@export var AQUA_LINK_MAX_RISE := 6.0  # altura maxima acumulada da subida
 @export var BUBBLE_SPEED_MULTIPLIER := 0.3
 
 const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
@@ -228,6 +234,7 @@ const SKILL_SLOTS := {
 @onready var head: Node3D = $Head
 @onready var camera_3d: Camera3D = %Camera3D
 @onready var speed_trail: SpeedTrail = $SpeedTrail
+@onready var landing_shadow: MeshInstance3D = $LandingShadow
 @onready var trajectory_indicator: MultiMeshInstance3D = $TrajectoryIndicator
 @onready var leap_indicator: Node3D = $LeapIndicator
 @onready var mannequin_mesh: Node3D = $Model
@@ -326,6 +333,9 @@ var is_leaping := false
 # LMB/RMB rock attacks
 var lmb_wave_count := 0
 var lmb_busy := false
+var _melee_stage := 0  # 0 = parado; 1..3 = qual golpe do combo está saindo
+var _melee_queued := false  # clicou no meio do golpe: emenda o próximo
+var _golem_punch_segment_end := -1.0  # onde pausar o clipe PunchCombo (fim da fatia atual)
 var rmb_busy := false
 var is_spiking := false
 
@@ -351,7 +361,12 @@ var _puddle_indicator_node: Node3D
 var is_water_linked := false
 var water_link_target: Player = null
 var water_link_timer := 0.0
+var _water_link_rise := 0.0  # altura ja acumulada pela subida lenta do link
+# Espaço que ativou o link/bolha não pode valer como "subir": sem isso, pular e segurar
+# espaço deixava o jogador flutuando pra cima assim que a bolha aparecia.
+var _water_space_needs_release := false
 var is_water_bubble := false
+var _puddle_speed_bonus := 1.0  # multiplicador enquanto está em cima de uma poça de água
 
 # Air abilities
 var air_dash_stacks := AIR_DASH_MAX_STACKS
@@ -549,6 +564,8 @@ func _process(delta: float) -> void:
 
 	_apply_camera_shake(delta)
 	_apply_fov(delta)
+	_update_golem_punch_segment()
+	_update_landing_shadow()
 
 	if Input.is_action_just_pressed('menu'):
 		if _pause_options_menu.visible:
@@ -629,7 +646,9 @@ func _process(delta: float) -> void:
 		is_charging_puddle = false
 
 	# LMB: Earth = rajada rápida de pedras / Fire = bola de fogo (carrega e solta, como o E antigo) / Air = 3 air slashes
-	if is_earth and Input.is_action_just_pressed('skill_lmb') and not lmb_busy and not is_boulder:
+	# Sem "not lmb_busy" aqui de propósito: clicar DURANTE um soco é o que emenda o próximo
+	# golpe do combo (o próprio _shoot_lmb trata isso).
+	if is_earth and Input.is_action_just_pressed('skill_lmb') and not is_boulder:
 		_shoot_lmb()
 
 	if is_fire and Input.is_action_just_pressed('skill_lmb'):
@@ -884,6 +903,9 @@ func _physics_process(delta: float) -> void:
 		current_speed = SPEED * CROUCH_SPEED_MULTIPLIER
 	elif is_boosted:
 		current_speed = SPEED * BOOST_MULTIPLIER
+
+	# Correr por cima de uma poça de água acelera (ver water_puddle.gd)
+	current_speed *= _puddle_speed_bonus
 
 	if air_dash_timer > 0.0:
 		# Deixa o impulso do Air Dash valer, sem o movimento normal sobrescrever a velocidade
@@ -1363,25 +1385,99 @@ func _tint_model_recursive(node: Node, tint: Color) -> void:
 		_tint_model_recursive(child, tint)
 
 
-# LMB: soco corpo a corpo, sem projétil nenhum. No Mannequin, cada clique avança 1 hit
-# do combo (Jab -> Hook -> Uppercut -> Jab...); o golem tem os 3 golpes num clipe só
-# ("PunchCombo", ver memory golem-shapekey-export-limitation), então toca ele inteiro.
+# LMB: soco corpo a corpo, sem projétil nenhum. 1 clique = 1 soco. Clicar DURANTE um soco
+# emenda o próximo do combo (soco 1 -> soco 2 -> uppercut); sem clicar de novo, o combo
+# termina ali e volta pro começo.
+#
+# O Mannequin tem um clipe por golpe (Jab/Hook/Uppercut); o golem tem os três num clipe só
+# ("PunchCombo", 2.5s, ver memory golem-shapekey-export-limitation), então cada golpe toca
+# a fatia correspondente desse clipe (ver _play_golem_punch_segment).
 func _shoot_lmb() -> void:
+	if lmb_busy:
+		_melee_queued = true  # clicou no meio do soco: emenda o próximo quando esse acabar
+		return
+
 	lmb_busy = true
-	_start_cooldown("lmb", LMB_SHOT_INTERVAL)
+	while true:
+		_melee_queued = false
+		_melee_stage = mini(_melee_stage + 1, GOLEM_PUNCH_SEGMENTS.size())
+		_start_cooldown("lmb", MELEE_STAGE_DURATION)
 
-	var combo_anim: String
-	if player_mesh == golem_mesh:
-		combo_anim = "PunchCombo"
-	else:
-		combo_anim = LMB_COMBO_ANIMATIONS[lmb_wave_count % LMB_COMBO_ANIMATIONS.size()]
-		lmb_wave_count += 1
+		if player_mesh == golem_mesh:
+			_play_golem_punch_segment.rpc(_melee_stage - 1)
+		else:
+			_play_animation.rpc(LMB_COMBO_ANIMATIONS[(_melee_stage - 1) % LMB_COMBO_ANIMATIONS.size()])
 
-	_play_animation.rpc(combo_anim)
-	_melee_hit()
-	await get_tree().create_timer(LMB_SHOT_INTERVAL).timeout
+		_melee_hit()
+		await get_tree().create_timer(MELEE_STAGE_DURATION).timeout
 
+		# Só continua o combo se clicou de novo durante o golpe e ainda tem golpe na sequência
+		if not _melee_queued or _melee_stage >= GOLEM_PUNCH_SEGMENTS.size():
+			break
+
+	_melee_stage = 0
+	_melee_queued = false
 	lmb_busy = false
+
+
+# Sombra no chão embaixo do player: raycast pra baixo e projeta um disco no ponto de
+# impacto, pra dar noção de onde o pulo vai aterrissar. Ignora entidades — o que importa
+# é o chão/parede de verdade, não a cabeça de um inimigo que passe embaixo.
+func _update_landing_shadow() -> void:
+	if landing_shadow == null:
+		return
+
+	var space_state = get_world_3d().direct_space_state
+	var from = global_position
+	var query = PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * LANDING_SHADOW_MAX_DISTANCE)
+
+	var excludes: Array[RID] = [get_rid()]
+	for group in ["Players", "Enemies", "Targets"]:
+		for body in get_tree().get_nodes_in_group(group):
+			if body is CollisionObject3D:
+				excludes.append(body.get_rid())
+	query.exclude = excludes
+
+	var result = space_state.intersect_ray(query)
+	if result.is_empty():
+		landing_shadow.visible = false
+		return
+
+	landing_shadow.visible = true
+	landing_shadow.global_position = result.position + Vector3(0, 0.03, 0)
+
+	# Quanto mais alto o player, menor e mais fraca a sombra
+	var height = from.y - result.position.y
+	var closeness = 1.0 - clampf(height / LANDING_SHADOW_MAX_DISTANCE, 0.0, 1.0)
+	landing_shadow.scale = Vector3.ONE * lerpf(0.55, 1.15, closeness)
+
+
+# Pausa o PunchCombo do golem no fim da fatia do golpe atual, pra um clique não disparar
+# os três socos de uma vez.
+func _update_golem_punch_segment() -> void:
+	if _golem_punch_segment_end < 0.0 or animation_player == null:
+		return
+
+	if animation_player.current_animation != "PunchCombo":
+		_golem_punch_segment_end = -1.0
+		return
+
+	if animation_player.current_animation_position >= _golem_punch_segment_end:
+		animation_player.pause()
+		_golem_punch_segment_end = -1.0
+
+
+# O golem tem os 3 socos num clipe só: toca só a fatia do golpe pedido e para no fim dela.
+@rpc("any_peer", "call_local")
+func _play_golem_punch_segment(stage: int) -> void:
+	if animation_player == null or not animation_player.has_animation("PunchCombo"):
+		return
+
+	var segment: Vector2 = GOLEM_PUNCH_SEGMENTS[clampi(stage, 0, GOLEM_PUNCH_SEGMENTS.size() - 1)]
+	_reset_golem_foliage()
+	animation_player.play("PunchCombo", ANIM_BLEND_TIME)
+	animation_player.seek(segment.x, true)
+	_golem_punch_segment_end = segment.y
 
 
 # O soco do LMB só tocava a animação, sem causar dano nenhum. Alcance curto e circular
@@ -1543,6 +1639,11 @@ func _apply_damage_effects(amount: int, element: int) -> void:
 # Habilidades de água curam players em vez de causar dano neles (ver water_pellet,
 # jet_stream, puddle_punch, water_bomb, rain_zone). Nos inimigos elas continuam
 # causando dano normal.
+# Chamado pela WaterPuddle ao entrar/sair dela (1.0 = sem bônus).
+func set_puddle_speed_bonus(multiplier: float) -> void:
+	_puddle_speed_bonus = maxf(multiplier, 1.0)
+
+
 func heal(amount: int) -> void:
 	if amount <= 0 or health >= max_health:
 		return
@@ -1955,6 +2056,8 @@ func _start_water_link(ally: Player) -> void:
 	is_water_linked = true
 	water_link_target = ally
 	water_link_timer = 0.0
+	_water_link_rise = 0.0
+	_water_space_needs_release = true
 	velocity = Vector3.ZERO
 	_set_water_link_visual.rpc(true)
 
@@ -1975,7 +2078,9 @@ func _update_water_link(delta: float) -> void:
 	water_link_timer += delta
 	velocity = Vector3.ZERO
 
-	var target_pos = water_link_target.global_position + Vector3(0, 1.6, 0)
+	# Sobe devagar enquanto grudado, parecendo uma bolha subindo
+	_water_link_rise = minf(_water_link_rise + AQUA_LINK_RISE_SPEED * delta, AQUA_LINK_MAX_RISE)
+	var target_pos = water_link_target.global_position + Vector3(0, 1.6 + _water_link_rise, 0)
 	global_position = global_position.lerp(target_pos, clamp(AQUA_LINK_FOLLOW_LERP * delta, 0.0, 1.0))
 
 	if water_link_timer >= AQUA_LINK_DURATION:
@@ -1995,6 +2100,7 @@ func _set_water_link_visual(active: bool) -> void:
 
 func _start_water_bubble() -> void:
 	is_water_bubble = true
+	_water_space_needs_release = true
 	_set_water_bubble_visual.rpc(true)
 
 
@@ -2017,8 +2123,12 @@ func _set_water_bubble_visual(active: bool) -> void:
 # Voo livre da bolha: direção horizontal normal + Espaço/Ctrl pra subir/descer, tudo a
 # BUBBLE_SPEED_MULTIPLIER da velocidade normal.
 func _apply_bubble_movement(direction: Vector3, _delta: float) -> void:
+	# Só conta "segurar espaço pra subir" depois de soltar o espaço que ativou a bolha
+	if _water_space_needs_release and not Input.is_action_pressed('jump'):
+		_water_space_needs_release = false
+
 	var vertical_input := 0.0
-	if Input.is_action_pressed('jump'):
+	if Input.is_action_pressed('jump') and not _water_space_needs_release:
 		vertical_input += 1.0
 	if Input.is_action_pressed('crouch'):
 		vertical_input -= 1.0
