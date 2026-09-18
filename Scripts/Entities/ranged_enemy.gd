@@ -7,8 +7,11 @@ extends CharacterBody3D
 @export var retreat_margin := 2.0
 
 @onready var fire_timer: Timer = $FireTimer
+@onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 
 const ENEMY_PROJECTILE = preload("res://Scenes/Entities/enemy_projectile.tscn")
+
+var is_dead := false
 
 func _ready() -> void:
 	add_to_group('Enemies')
@@ -16,7 +19,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not is_multiplayer_authority():
+	if not is_multiplayer_authority() or is_dead:
 		return
 
 	if not is_on_floor():
@@ -52,7 +55,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _try_fire() -> void:
-	if not is_multiplayer_authority():
+	if not is_multiplayer_authority() or is_dead:
 		return
 
 	var target := _closest_player()
@@ -97,8 +100,20 @@ func take_damage(damage: int, source: int, _element: int = -1):
 		return
 
 	if next_health <= 0:
-		queue_free()
+		_die.rpc()
 		player_to_notify.register_hit.rpc_id(source, true)
 	else:
 		health = next_health
 		player_to_notify.register_hit.rpc_id(source)
+
+
+# Ragdoll simples (tomba e cai) + dissolve, ver enemy_death.gd. Chamado via RPC (em vez
+# de queue_free() direto) pra todo peer rodar o dissolve local — só quem matou executaria
+# senão, já que take_damage só roda em quem tem autoridade sobre o ataque.
+@rpc("any_peer", "call_local")
+func _die() -> void:
+	if is_dead:
+		return
+	is_dead = true
+	remove_from_group('Enemies')
+	EnemyDeath.start(self, mesh_instance)
