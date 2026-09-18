@@ -4,7 +4,7 @@ class_name RainZone
 
 @export var DURATION := 3.0
 # Chuva de água: cura quem está embaixo dela de tempos em tempos (ver Player.heal).
-@export var HEAL_PER_TICK := 10
+@export var HEAL_PER_TICK := 30  # 3x
 @export var HEAL_INTERVAL := 0.5
 @export var HEAL_RADIUS := 3.0  # bate com emission_box_extents das partículas na cena
 

@@ -7,7 +7,7 @@ class_name PuddlePunch
 @export var DISC_THICKNESS := 0.6  # espessura do disco ao longo da normal
 @export var PUSH_FORCE := 14.0
 @export var DAMAGE := 15
-@export var HEAL := 15  # em player, agua cura em vez de machucar
+@export var HEAL := 45  # em player, agua cura em vez de machucar (3x)
 @export var LIFETIME_AFTER_PUNCH := 1.0
 
 @onready var puddle_mesh: MeshInstance3D = $PuddleMesh

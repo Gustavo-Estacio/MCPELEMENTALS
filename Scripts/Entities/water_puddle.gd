@@ -10,7 +10,7 @@ var tag: String = "decal"
 
 @export var LIFETIME := 4.0
 @export var SPEED_MULTIPLIER := 1.5  # movespeed de quem está em cima da poça
-@export var HEAL_PER_TICK := 6
+@export var HEAL_PER_TICK := 18  # 3x
 @export var HEAL_INTERVAL := 0.5
 
 var _players_inside: Array = []

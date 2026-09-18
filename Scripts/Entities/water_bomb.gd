@@ -12,7 +12,7 @@ var has_landed := false
 
 @export var SPIN_SPEED := 6.0
 @export var SPLASH_DAMAGE := 20
-@export var SPLASH_HEAL := 20  # em player, agua cura em vez de machucar
+@export var SPLASH_HEAL := 60  # em player, agua cura em vez de machucar (3x)
 @export var SPLASH_RADIUS := 3.0
 
 

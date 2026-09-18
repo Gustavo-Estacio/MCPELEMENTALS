@@ -5,7 +5,7 @@ class_name JetStream
 @export var SPEED := 28.0
 @export var LIFETIME := 1.2
 @export var DAMAGE := 18
-@export var HEAL := 18  # em player, agua cura em vez de machucar
+@export var HEAL := 54  # em player, agua cura em vez de machucar (3x)
 @export var PUSH_STRENGTH := 16.0  # empurrão único somado ao vetor de movimento de habilidades "moveable"
 
 var element: int = ElementsEnum.Element.WATER

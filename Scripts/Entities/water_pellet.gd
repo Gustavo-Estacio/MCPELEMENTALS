@@ -12,7 +12,7 @@ var has_collided := false
 
 @export var LIFETIME := 3.0
 @export var DAMAGE := 8
-@export var HEAL := 8  # em player, agua cura em vez de machucar
+@export var HEAL := 24  # em player, agua cura em vez de machucar (3x)
 
 
 func _ready() -> void:

@@ -54,6 +54,7 @@ var health := max_health
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
 @export var LANDING_SHADOW_MAX_DISTANCE := 40.0  # alcance do raycast da sombra de pouso
 @export var BOULDER_CRUSH_DAMAGE := 300  # dano nos inimigos atropelados pelo Boulder Dash (uma vez cada, por dash)
+@export var BOULDER_SPEEDLINE_RESUME_PROGRESS := 0.25  # quanto da rampa precisa recuperar pras speed lines voltarem depois de bater
 
 @export_group("Fire Dash (Fire Shift)")
 @export var FIRE_DASH_DURATION := 5.0
@@ -112,9 +113,10 @@ const GOLEM_PUNCH_SEGMENTS := [Vector2(0.0, 0.83), Vector2(0.83, 1.67), Vector2(
 @export var AQUA_LINK_FOLLOW_LERP := 40.0  # 4x mais rapido que o original (10.0)
 @export var AQUA_LINK_RISE_SPEED := 0.8  # sobe devagar enquanto grudado, feito uma bolha
 @export var AQUA_LINK_MAX_RISE := 6.0  # altura maxima acumulada da subida
-@export var AQUA_LINK_HEAL_PER_TICK := 25  # cura por tick enquanto o link esta ativo
+@export var AQUA_LINK_HEAL_PER_TICK := 75  # cura por tick enquanto o link esta ativo (3x)
 @export var AQUA_LINK_HEAL_INTERVAL := 0.5
-@export var BUBBLE_SPEED_MULTIPLIER := 0.3
+@export var BUBBLE_SPEED_MULTIPLIER := 1.4  # bem mais rapida que o original (0.3): voa como quiser
+@export var BUBBLE_FLOAT_SPEED := 1.0  # levita sozinha pra cima, devagar, feito bolha
 
 const LMB_COMBO_ANIMATIONS := ["Jab", "Hook", "Uppercut"]
 
@@ -310,6 +312,7 @@ var _boulder_launch_boost_timer := 0.0  # empurrão extra pra frente, decaindo l
 var _boulder_bounce_cooldown := 0.0  # evita quicar de novo enquanto ainda encostado na mesma parede
 var _boulder_bounce_turn_rate_timer := 0.0  # turn rate reduzido enquanto > 0, contando pra baixo depois de um quique
 var _boulder_crushed_enemies: Array = []  # já tomaram dano nesse dash, não bate de novo no mesmo
+var _boulder_speedlines_off := false  # bateu numa parede: sem speed lines até recuperar velocidade
 
 # Corpos com colisão física ignorada temporariamente (add_collision_exception_with) —
 # Boulder Dash atropela inimigos em vez de quicar neles, Earth Leap atravessa qualquer
@@ -1034,6 +1037,7 @@ func _update_boulder_wall_bounce(delta: float) -> void:
 		boulder_distance_traveled = 0.0
 		_boulder_launch_boost_timer = 0.0
 		_boulder_bounce_cooldown = BOULDER_BOUNCE_COOLDOWN
+		_boulder_speedlines_off = true  # bateu: corta as linhas até pegar velocidade de novo
 		add_camera_shake(BOULDER_IMPACT_SHAKE_TRAUMA * impact_fraction)
 		break
 
@@ -1764,6 +1768,15 @@ func _update_speedlines_state() -> void:
 	if not is_multiplayer_authority():
 		return
 
+	# Depois de bater numa parede, o Boulder fica sem speed lines até a rampa de
+	# velocidade se recuperar (a batida zera boulder_distance_traveled).
+	if is_boulder and _boulder_speedlines_off:
+		if _boulder_progress() >= BOULDER_SPEEDLINE_RESUME_PROGRESS:
+			_boulder_speedlines_off = false
+		else:
+			DevFX.speedlines_stop(SPEEDLINE_STOP_FADE)
+			return
+
 	if is_boulder or is_fire_dashing:
 		_speedline_burst_timer = 0.0
 		DevFX.speedlines_start(DevFX.SPEEDLINES_DASH)
@@ -1823,6 +1836,7 @@ func _start_boulder_dash() -> void:
 	boulder_infused_with = -1
 	_boulder_decal_timer = 0.0
 	_boulder_crushed_enemies.clear()
+	_boulder_speedlines_off = false
 	_boulder_time_expired = false
 	_boulder_was_airborne = false
 	_boulder_roll_dir = _get_horizontal_forward()
@@ -2172,6 +2186,10 @@ func _apply_bubble_movement(direction: Vector3, _delta: float) -> void:
 		velocity = fly_dir.normalized() * (SPEED * BUBBLE_SPEED_MULTIPLIER)
 	else:
 		velocity = Vector3.ZERO
+
+	# Sem input vertical, a bolha sobe sozinha devagar (flutua, não fica parada no ar)
+	if absf(vertical_input) < 0.01:
+		velocity.y = BUBBLE_FLOAT_SPEED
 
 
 # Empurrão usado pelo Puddle Punch (Water Q) pra afastar outros jogadores da poça.
