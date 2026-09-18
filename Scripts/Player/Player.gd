@@ -73,6 +73,7 @@ var health := max_health
 @export_group("Punch Combo (LMB Earth)")
 @export var LMB_SHOT_INTERVAL := 0.12
 @export var MELEE_DAMAGE := 40
+@export var MELEE_HEAL := 40  # socar um aliado cura em vez de machucar
 @export var MELEE_RANGE := 3.0  # alcance horizontal do soco
 @export var MELEE_VERTICAL_RANGE := 2.0  # não acerta quem está muito acima/abaixo
 @export var MELEE_MIN_FACING_DOT := 0.25  # ~75° pra cada lado da direção que o player encara
@@ -1480,27 +1481,37 @@ func _play_golem_punch_segment(stage: int) -> void:
 	_golem_punch_segment_end = segment.y
 
 
-# O soco do LMB só tocava a animação, sem causar dano nenhum. Alcance curto e circular
+# O soco do LMB só tocava a animação, sem causar efeito nenhum. Alcance curto e circular
 # à frente do player (mesma ideia do ataque do MeleeEnemy): precisa estar perto na
 # horizontal E na altura, senão soco no chão acertaria quem está numa plataforma acima.
+# Inimigo no alcance toma dano; aliado no alcance é curado.
 func _melee_hit() -> void:
-	var forward = _get_horizontal_forward()
 	for enemy in get_tree().get_nodes_in_group('Enemies'):
-		if not is_instance_valid(enemy) or not enemy.has_method('take_damage'):
-			continue
+		if _is_in_melee_range(enemy) and enemy.has_method('take_damage'):
+			enemy.take_damage(MELEE_DAMAGE, int(name), ElementsEnum.Element.EARTH)
 
-		var to_enemy = enemy.global_position - global_position
-		if absf(to_enemy.y) > MELEE_VERTICAL_RANGE:
-			continue
+	for ally in get_tree().get_nodes_in_group('Players'):
+		if ally != self and _is_in_melee_range(ally) and ally.has_method('heal'):
+			ally.heal(MELEE_HEAL)
 
-		var flat = Vector3(to_enemy.x, 0, to_enemy.z)
-		if flat.length() > MELEE_RANGE:
-			continue
-		# Só o que está à frente (semicírculo), não nas costas
-		if flat.length() > 0.01 and forward.dot(flat.normalized()) < MELEE_MIN_FACING_DOT:
-			continue
 
-		enemy.take_damage(MELEE_DAMAGE, int(name), ElementsEnum.Element.EARTH)
+func _is_in_melee_range(target: Node3D) -> bool:
+	if not is_instance_valid(target):
+		return false
+
+	var to_target = target.global_position - global_position
+	if absf(to_target.y) > MELEE_VERTICAL_RANGE:
+		return false
+
+	var flat = Vector3(to_target.x, 0, to_target.z)
+	if flat.length() > MELEE_RANGE:
+		return false
+
+	# Só o que está à frente (semicírculo), não nas costas
+	if flat.length() > 0.01 and _get_horizontal_forward().dot(flat.normalized()) < MELEE_MIN_FACING_DOT:
+		return false
+
+	return true
 
 
 # RMB: 2 projéteis grandes por clique, depois recarrega.
