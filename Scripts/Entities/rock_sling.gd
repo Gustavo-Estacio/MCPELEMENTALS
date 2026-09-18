@@ -52,9 +52,13 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var contact_point = state.get_contact_collider_position(0)
 	var contact_normal = state.get_contact_local_normal(0)
 
-	if collider and collider.is_in_group("Targets"):
-		# Alvos (props atingíveis) não recebem o decal na lateral: projeta no chão
-		# embaixo do centro do alvo, igual pediram.
+	# O decal só pode marcar chão/parede de verdade — nunca a lateral de uma criatura
+	# (Target, Enemy ou outro Player). O dano em si já foi aplicado em _on_body_entered;
+	# aqui só decide onde a marca visual cai: projeta no chão embaixo do alvo.
+	var hit_creature = collider and (collider.is_in_group("Targets")
+		or collider.is_in_group("Enemies") or collider.is_in_group("Players"))
+
+	if hit_creature:
 		var space_state = get_world_3d().direct_space_state
 		var query = PhysicsRayQueryParameters3D.create(
 			collider.global_position,

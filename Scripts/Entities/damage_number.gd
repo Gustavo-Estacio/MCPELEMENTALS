@@ -9,8 +9,10 @@ class_name DamageNumber
 const RISE_HEIGHT := 1.3
 const LIFETIME := 0.85
 const HORIZONTAL_DRIFT := 0.35
-const BASE_FONT_SIZE := 48
-const CRIT_FONT_SIZE := 68  # dano alto (crit) sai maior, igual a maioria dos ARPGs
+# Fonte 5x menor que a original (48/68) — pedido explícito pra reduzir o tamanho do
+# efeito de acerto.
+const BASE_FONT_SIZE := 10
+const CRIT_FONT_SIZE := 14  # dano alto (crit) sai maior, igual a maioria dos ARPGs
 
 @export var amount: int = 0:
 	set(value):
@@ -32,7 +34,7 @@ func _ready() -> void:
 	billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	no_depth_test = true
 	fixed_size = true
-	outline_size = 14
+	outline_size = 3
 	outline_modulate = Color(0, 0, 0, 0.85)
 	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vertical_alignment = VERTICAL_ALIGNMENT_CENTER
