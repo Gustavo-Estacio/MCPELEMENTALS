@@ -231,6 +231,7 @@ const SKILL_SLOTS := {
 @onready var button_element_water: Button = %ButtonElementWater
 
 @onready var controls_label: Label = %ControlsLabel
+@onready var element_bar: HBoxContainer = %ElementBar
 @onready var label_session: Label = %LabelSession
 @onready var button_copy_session: Button = %ButtonCopySession
 @onready var reticle: Panel = %Reticle
@@ -520,7 +521,7 @@ func _ready():
 	base_fov = camera_3d.fov
 	_base_camera_rotation = camera_3d.rotation
 	base_fov = Settings.get_value("fov")
-	controls_label.visible = Settings.get_value("show_controls")
+	_set_skill_hud_visible(Settings.get_value("show_controls"))
 	# Duplica o stylebox compartilhado do reticle, senão o modo alto contraste
 	# de um player mudaria o reticle de todo mundo
 	reticle.add_theme_stylebox_override("panel", reticle.get_theme_stylebox("panel").duplicate())
@@ -583,6 +584,10 @@ func _process(delta: float) -> void:
 			_close_pause_menu()
 		else:
 			_open_pause_menu()
+
+	# Numpad 7: liga/desliga o painel de skills (ControlsLabel) e a barra de elementos.
+	if Input.is_action_just_pressed('toggle_skill_hud'):
+		_set_skill_hud_visible(not controls_label.visible)
 
 	# TAB: libera o mouse pra arrastar as spells Q/E entre os slots e mostra o
 	# painel de stats à direita, enquanto segurado. Some/recaptura o mouse ao soltar.
@@ -1393,6 +1398,13 @@ func _update_element_bar(elem: int) -> void:
 			button_element_air.button_pressed = true
 		_:
 			button_element_earth.button_pressed = true
+
+
+# Painel de skills + barra de elementos andam juntos (Numpad 7 e a opção "show_controls").
+func _set_skill_hud_visible(value: bool) -> void:
+	controls_label.visible = value
+	if is_instance_valid(element_bar):
+		element_bar.visible = value
 
 
 func _update_controls_label(elem: int) -> void:
@@ -2396,7 +2408,7 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 	if key == "fov":
 		base_fov = value
 	elif key == "show_controls":
-		controls_label.visible = value
+		_set_skill_hud_visible(value)
 	elif key == "high_contrast_reticle":
 		_apply_reticle_contrast(value)
 
