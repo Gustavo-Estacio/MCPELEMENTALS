@@ -273,6 +273,8 @@ func _deflect_projectiles(pos: Vector3, dir: Vector3) -> void:
 	const DEFLECT_RANGE := 4.0
 	const DEFLECT_HALF_ANGLE_DEG := 45.0
 
+	var caster_peer_id := multiplayer.get_remote_sender_id()
+
 	var horizontal_dir = Vector3(dir.x, 0, dir.z)
 	horizontal_dir = horizontal_dir.normalized() if horizontal_dir.length() > 0.001 else Vector3.FORWARD
 
@@ -294,6 +296,10 @@ func _deflect_projectiles(pos: Vector3, dir: Vector3) -> void:
 		if angle <= DEFLECT_HALF_ANGLE_DEG:
 			node.linear_velocity = Vector3.ZERO
 			node.angular_velocity = Vector3.ZERO
+
+			# Rouba a autoria de projétil inimigo: a partir daqui ele fere inimigos, não players.
+			if "redirected_by_peer_id" in node:
+				node.redirected_by_peer_id = caster_peer_id
 
 	var wind_particles = preload("res://Scenes/Effects/wind_particles.tscn")
 	var particles_instance = wind_particles.instantiate()

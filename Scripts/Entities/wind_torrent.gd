@@ -46,3 +46,7 @@ func _on_area_entered(other: Area3D) -> void:
 		_already_pushed.append(body)
 		# Empurrão único: soma a força do vento (na direção fixa do cast) ao vetor de movimento atual da pedra
 		body.linear_velocity += forward_dir * WIND_PUSH_STRENGTH
+
+		# Rouba a autoria de projétil inimigo: a partir daqui ele fere inimigos, não players.
+		if "redirected_by_peer_id" in body:
+			body.redirected_by_peer_id = owner_peer_id
