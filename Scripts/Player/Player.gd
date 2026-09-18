@@ -250,15 +250,14 @@ var _golem_torso_bone_idx := -1
 var animation_fsm := PlayerAnimationFSM.new()
 var _pause_options_menu: OptionsMenu
 var _skill_hud: SkillHUD
-var _health_bar: HealthBar
+var _health_bar: HealthBar  # única fonte de vida: health/max_health abaixo, ver take_damage()
 
-# Stats (vida, dano, área, etc.) — ver Scripts/Core/player_stats.gd. Por enquanto
-# só são exibidos no painel ao segurar TAB, ainda não afetam dano/movimento/etc.
+# Stats (dano, área, etc.) — ver Scripts/Core/player_stats.gd. Por enquanto só são
+# exibidos no painel ao segurar TAB, ainda não afetam dano/movimento/etc. "health" ali
+# é só um número de referência pro painel; a vida de verdade é o par health/max_health.
 var stats := PlayerStats.new()
 var _stats_panel: StatsPanel
 var _spell_slot_bar: SpellSlotBar
-var _health_bar: HealthBar
-var current_health := 0.0
 var _tab_held := false
 
 # TAB: troca a ordem das spells Q/E ao arrastar um slot em cima do outro na
@@ -500,15 +499,6 @@ func _ready():
 	_stats_panel = StatsPanel.new()
 	canvas_layer.add_child(_stats_panel)
 	_stats_panel.setup(stats)
-
-	current_health = stats.get_stat("health")
-	_health_bar = HealthBar.new()
-	canvas_layer.add_child(_health_bar)
-	_health_bar.setup(current_health, stats.get_stat("health"))
-	stats.stat_changed.connect(func(key: String, value: float):
-		if key == "health" and is_instance_valid(_health_bar):
-			_health_bar.set_max_health(value)
-	)
 
 	_spell_slot_bar = SpellSlotBar.new()
 	_spell_slot_bar.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -1192,7 +1182,7 @@ func toggle_spell_slots() -> void:
 # pra exibir na SpellSlotBar.
 func get_ability_name_for_key(key: String) -> String:
 	var action := _q_action() if key == "q" else _e_action()
-	var is_earth = player_element == ElementsEnum.Element.EARTH or player_element == ElementsEnum.Element.GOLEM
+	var is_earth = player_element == ElementsEnum.Element.EARTH
 	var is_fire = player_element == ElementsEnum.Element.FIRE
 	if action == &"skill_q":
 		if is_earth:
@@ -1291,9 +1281,6 @@ func _update_controls_label(elem: int) -> void:
 			controls_label.text = "FIRE\nQ: Flamethrower (segure)\nE: Fire Blast (área)\nLMB: Fireball (carregue e solte)\nRMB: Fire Cone\nSHIFT: Fire Dash (2x veloc., 5s)\nSPACE: Pulo\nTAB: Stats / trocar Q-E\nESC: Menu"
 		ElementsEnum.Element.AIR:
 			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)\nTAB: Stats / trocar Q-E\nESC: Menu"
-		ElementsEnum.Element.GOLEM:
-			controls_label.text = "GOLEM\nQ: Rock Sling (carregue e solte)\nE: Earth Spikes (fileira)\nLMB: Soco (Jab/Hook/Uppercut)\nRMB: 2 Rochas Grandes\nSHIFT: Boulder Dash\nSPACE: Pulo / Earth Leap (segure parado)\nTAB: Stats / trocar Q-E\nESC: Menu"
-			controls_label.text = "AIR\nQ: Wind Torrent (empurra objetos)\nE: Tornado (zigue-zague)\nLMB: 3 Air Slashes\nRMB: Slash of Air (deflete)\nSHIFT: Air Dash (3 cargas, 5s cada)\nSPACE: Pulo / Duplo Pulo / Planar (segure no ar)"
 		ElementsEnum.Element.WATER:
 			controls_label.text = "WATER\nQ: Puddle Punch (segure pra mirar, solte pra socar)\nE: Water Bomb (chove no impacto)\nLMB: 3 Water Pellets\nRMB: Jet Stream\nSHIFT: Water Dash (deixa poças no rastro)\nSPACE (no ar): gruda num aliado ou vira bolha voadora"
 		_:
@@ -1440,22 +1427,18 @@ func get_forward_direction() -> Vector3:
 
 func take_damage(amount = 0, _source_peer_id: int = -1, element: int = -1) -> void:
 	# Chamado diretamente pelo servidor (autoridade do projétil), então não dá
-	# pra confiar em is_multiplayer_authority() aqui — precisa de RPC pro dono real ver o efeito
-<<<<<<< HEAD
+	# pra confiar em is_multiplayer_authority() aqui — precisa de RPC pro dono real ver o efeito.
+	# O número flutuante vai aqui (uma vez só, por quem chamou take_damage) e não dentro do
+	# RPC, senão "call_local" o dispararia de novo em quem lançou o projétil.
+	Global.spawn_damage_number.rpc_id(1, global_position + Vector3(0, 1.7, 0), amount,
+		Global.DAMAGE_NUMBER_PLAYER_TINT)
 	_apply_damage_effects.rpc_id(int(name), amount, element)
-=======
-	_apply_damage_effects.rpc_id(int(name), int(_amount), element)
->>>>>>> bf8895fc118354191df62795448a5f1de815f033
 
 
 @rpc("any_peer", "call_local")
 func _apply_damage_effects(amount: int, element: int) -> void:
 	_enter_combat()
 	health = maxi(health - amount, 0)
-
-	current_health = clamp(current_health - amount, 0.0, stats.get_stat("health"))
-	if is_instance_valid(_health_bar):
-		_health_bar.set_health(current_health)
 
 	if is_boulder and boulder_infused_with == -1 and element == ElementsEnum.Element.FIRE:
 		ignite_boulder.rpc()

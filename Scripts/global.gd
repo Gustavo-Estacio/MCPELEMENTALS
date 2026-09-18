@@ -41,6 +41,30 @@ func _apply_fire_shader(fireball: Node3D) -> void:
 	pass
 
 
+const DAMAGE_NUMBER = preload("res://Scenes/Effects/damage_number.tscn")
+
+# Cor do número de dano por "quem levou": vermelho quando é o próprio player, amarelo
+# pálido quando é inimigo/alvo — ajuda a distinguir dano recebido de dano causado.
+const DAMAGE_NUMBER_PLAYER_TINT := Color(1.0, 0.25, 0.2)
+const DAMAGE_NUMBER_ENEMY_TINT := Color(1.0, 0.92, 0.55)
+
+
+# Chamado por qualquer peer via rpc_id(1, ...); só o servidor (autoridade do Global)
+# de fato instancia — daí o spawn_container.add_child replica pra todo mundo, porque
+# damage_number.tscn está em _spawnable_scenes do MultiplayerSpawner (mesmo esquema do
+# rock_sling/rock_decal/explosion).
+@rpc("any_peer", "call_local")
+func spawn_damage_number(pos: Vector3, amount: int, tint: Color = DAMAGE_NUMBER_ENEMY_TINT) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var number = DAMAGE_NUMBER.instantiate()
+	number.global_position = pos
+	number.amount = amount
+	number.tint = tint
+	spawn_container.add_child(number, true)
+
+
 @rpc("any_peer", "call_local")
 func cast_ability(ability_type: String, pos: Vector3, dir: Vector3, charge_power: float = 1.0) -> void:
 	if not is_multiplayer_authority():

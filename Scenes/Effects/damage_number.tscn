@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3 uid="uid://dqk1n8y5f2h3w"]
+
+[ext_resource type="Script" path="res://Scripts/Entities/damage_number.gd" id="1_dmgnum"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_dmgnum"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:amount")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:tint")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+
+[node name="DamageNumber" type="Label3D" unique_id=738104552]
+script = ExtResource("1_dmgnum")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_dmgnum")

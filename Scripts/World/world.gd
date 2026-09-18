@@ -44,11 +44,7 @@ func toggle_enemy_spawn() -> void:
 
 
 func spawn_enemy():
-<<<<<<< HEAD
 	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= MAX_ENEMIES:
-=======
-	if not is_multiplayer_authority() or get_tree().get_node_count_in_group('Enemies') >= 18:
->>>>>>> bf8895fc118354191df62795448a5f1de815f033
 		return
 
 	var enemy_scene = RANGED_ENEMY if randf() < 0.5 else MELEE_ENEMY
