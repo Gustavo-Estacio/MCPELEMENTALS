@@ -888,10 +888,13 @@ func _physics_process(delta: float) -> void:
 		if water_dash_timer >= WATER_DASH_DURATION:
 			_end_water_dash()
 		else:
-			_water_dash_puddle_timer += delta
-			if _water_dash_puddle_timer >= WATER_DASH_PUDDLE_INTERVAL:
-				_water_dash_puddle_timer = 0.0
-				Global.spawn_water_puddle.rpc_id(1, global_position)
+			# Só deixa poça com o pé no chão: dashando no ar não cria nada (o timer nem
+			# corre, senão ao tocar o chão sairiam várias poças de uma vez).
+			if is_on_floor():
+				_water_dash_puddle_timer += delta
+				if _water_dash_puddle_timer >= WATER_DASH_PUDDLE_INTERVAL:
+					_water_dash_puddle_timer = 0.0
+					Global.spawn_water_puddle.rpc_id(1, global_position)
 
 	var current_speed = SPEED
 	if is_boulder:
