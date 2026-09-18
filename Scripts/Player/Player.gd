@@ -54,6 +54,8 @@ var health := max_health
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
 @export var LANDING_SHADOW_MAX_DISTANCE := 40.0  # alcance do raycast da sombra de pouso
 @export var BOULDER_CRUSH_DAMAGE := 300  # dano nos inimigos atropelados pelo Boulder Dash (uma vez cada, por dash)
+@export var BOULDER_CRUSH_EXTRA_REACH := 0.8  # folga além do raio da bola pra contar como atropelado
+@export var BOULDER_CRUSH_KNOCKBACK := 16.0  # empurrão em quem é atropelado
 @export var BOULDER_SPEEDLINE_RESUME_PROGRESS := 0.25  # quanto da rampa precisa recuperar pras speed lines voltarem depois de bater
 
 @export_group("Fire Dash (Fire Shift)")
@@ -937,8 +939,15 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if is_water_bubble and is_on_floor():
-		_end_water_bubble()
+	if is_water_bubble:
+		# Bolha (Aqua Link solo) também se auto cura, no mesmo ritmo do link com aliado.
+		_water_link_heal_timer += delta
+		if _water_link_heal_timer >= AQUA_LINK_HEAL_INTERVAL:
+			_water_link_heal_timer = 0.0
+			heal(AQUA_LINK_HEAL_PER_TICK)
+
+		if is_on_floor():
+			_end_water_bubble()
 
 	if is_boulder:
 		_crush_boulder_enemies()
@@ -1047,21 +1056,37 @@ func _update_boulder_wall_bounce(delta: float) -> void:
 # Boulder Dash "amassa" inimigos: ignora a colisão física com eles (pra não travar/quicar
 # neles como se fossem parede) e causa dano uma vez por inimigo, por dash.
 func _crush_boulder_enemies() -> void:
-	for i in get_slide_collision_count():
-		var collider = get_slide_collision(i).get_collider()
-		if not (collider and collider.is_in_group("Enemies")):
+	# A exceção de colisão é aplicada em TODO inimigo, ANTES de encostar em qualquer um
+	# (inclusive nos que nascem no meio do dash): reagir só depois do primeiro contato
+	# ainda deixava o boulder travar/quicar no frame da batida.
+	var crush_radius = BOULDER_RADIUS * _current_boulder_scale() + BOULDER_CRUSH_EXTRA_REACH
+
+	for enemy in get_tree().get_nodes_in_group("Enemies"):
+		if not is_instance_valid(enemy):
 			continue
 
-		if not _ignored_collision_bodies.has(collider):
-			add_collision_exception_with(collider)
-			_ignored_collision_bodies.append(collider)
+		if not _ignored_collision_bodies.has(enemy):
+			add_collision_exception_with(enemy)
+			_ignored_collision_bodies.append(enemy)
 
-		if not _boulder_crushed_enemies.has(collider) and collider.has_method("take_damage"):
-			_boulder_crushed_enemies.append(collider)
+		if _boulder_crushed_enemies.has(enemy):
+			continue
+		if global_position.distance_to(enemy.global_position) > crush_radius:
+			continue
+
+		# Sem colisão física, o atropelamento é detectado por distância (não dá mais pra
+		# depender de get_slide_collision, que só reporta o que de fato colidiu).
+		_boulder_crushed_enemies.append(enemy)
+		if enemy.has_method("take_damage"):
 			# source = o próprio peer_id de quem tá no Boulder: take_damage do inimigo
 			# procura um Player com esse nome pra creditar o hit — passar -1 (convenção de
 			# "é um inimigo atacando") faria a busca falhar e o dano nem ser aplicado.
-			collider.take_damage(BOULDER_CRUSH_DAMAGE, int(name))
+			enemy.take_damage(BOULDER_CRUSH_DAMAGE, int(name))
+		if enemy.has_method("apply_knockback"):
+			var away = enemy.global_position - global_position
+			away.y = 0.0
+			away = away.normalized() if away.length() > 0.01 else _boulder_roll_dir
+			enemy.apply_knockback.rpc((away + Vector3.UP * 0.6).normalized(), BOULDER_CRUSH_KNOCKBACK)
 
 
 # Earth Leap atravessa qualquer entidade até encostar no chão de verdade — sem isso o
@@ -1849,6 +1874,7 @@ func _start_boulder_dash() -> void:
 	_boulder_decal_timer = 0.0
 	_boulder_crushed_enemies.clear()
 	_boulder_speedlines_off = false
+	_crush_boulder_enemies()  # já entra no dash ignorando a colisão de todo inimigo vivo
 	_boulder_time_expired = false
 	_boulder_was_airborne = false
 	_boulder_roll_dir = _get_horizontal_forward()
@@ -2160,6 +2186,7 @@ func _set_water_link_visual(active: bool) -> void:
 func _start_water_bubble() -> void:
 	is_water_bubble = true
 	_water_space_needs_release = true
+	_water_link_heal_timer = 0.0
 	_set_water_bubble_visual.rpc(true)
 
 
