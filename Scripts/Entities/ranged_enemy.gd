@@ -1,7 +1,10 @@
-extends StaticBody3D
+extends CharacterBody3D
 
 @export var health := 30
+@export var speed := 3.0
 @export var fire_range := 15.0
+@export var preferred_distance := 9.0  # mantém essa distância do alvo (persegue se longe, recua se perto)
+@export var retreat_margin := 2.0
 
 @onready var fire_timer: Timer = $FireTimer
 
@@ -10,6 +13,42 @@ const ENEMY_PROJECTILE = preload("res://Scenes/Entities/enemy_projectile.tscn")
 func _ready() -> void:
 	add_to_group('Enemies')
 	fire_timer.timeout.connect(_try_fire)
+
+
+func _physics_process(delta: float) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	if not is_on_floor():
+		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
+
+	var target := _closest_player()
+	if not target:
+		velocity.x = 0
+		velocity.z = 0
+		move_and_slide()
+		return
+
+	var to_target = target.global_position - global_position
+	to_target.y = 0
+	var dist = to_target.length()
+
+	if dist > 0.01:
+		look_at(global_position + to_target, Vector3.UP)
+
+	if dist > preferred_distance:
+		var dir = to_target.normalized()
+		velocity.x = dir.x * speed
+		velocity.z = dir.z * speed
+	elif dist < preferred_distance - retreat_margin:
+		var dir = -to_target.normalized()
+		velocity.x = dir.x * speed
+		velocity.z = dir.z * speed
+	else:
+		velocity.x = 0
+		velocity.z = 0
+
+	move_and_slide()
 
 
 func _try_fire() -> void:

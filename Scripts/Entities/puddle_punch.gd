@@ -2,8 +2,9 @@ extends Node3D
 
 class_name PuddlePunch
 
-@export var TELEGRAPH_DELAY := 0.3  # tempo com a poça no chão antes do soco sair
-@export var RADIUS := 3.5
+@export var TELEGRAPH_DELAY := 0.8  # tempo com a poça no chão antes do soco sair
+@export var RADIUS := 1.0  # tamanho aproximado de um player (diâmetro ~ altura da cápsula)
+@export var DISC_THICKNESS := 0.6  # espessura do disco ao longo da normal
 @export var PUSH_FORCE := 14.0
 @export var DAMAGE := 15
 @export var LIFETIME_AFTER_PUNCH := 1.0
@@ -35,12 +36,18 @@ func _punch() -> void:
 	var up = global_transform.basis.y.normalized()
 
 	var space_state = get_world_3d().direct_space_state
-	var shape = SphereShape3D.new()
+	# Disco achatado ao longo da normal (não uma esfera): expande no plano
+	# perpendicular à normal da superfície, "colado" nela, do tamanho de um player.
+	var shape = CylinderShape3D.new()
 	shape.radius = RADIUS
+	shape.height = DISC_THICKNESS
+
+	var disc_basis = Basis(Quaternion(Vector3.UP, up))
+	var disc_center = global_position + up * (DISC_THICKNESS * 0.5)
 
 	var query = PhysicsShapeQueryParameters3D.new()
 	query.shape = shape
-	query.transform = Transform3D(Basis(), global_position)
+	query.transform = Transform3D(disc_basis, disc_center)
 	query.collision_mask = 3  # layers 1 (chão/alvos) e 2 (players)
 
 	var already_hit: Array = []
