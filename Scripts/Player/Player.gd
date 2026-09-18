@@ -111,8 +111,7 @@ const GOLEM_PUNCH_SEGMENTS := [Vector2(0.0, 0.83), Vector2(0.83, 1.67), Vector2(
 @export var AQUA_LINK_DURATION := 5.0
 @export var AQUA_LINK_RANGE := 15.0
 @export var AQUA_LINK_FOLLOW_LERP := 40.0  # 4x mais rapido que o original (10.0)
-@export var AQUA_LINK_RISE_SPEED := 0.8  # sobe devagar enquanto grudado, feito uma bolha
-@export var AQUA_LINK_MAX_RISE := 6.0  # altura maxima acumulada da subida
+@export var AQUA_LINK_HEIGHT := 1.6  # altura fixa acima do aliado (sem subir sozinho)
 @export var AQUA_LINK_HEAL_PER_TICK := 75  # cura por tick enquanto o link esta ativo (3x)
 @export var AQUA_LINK_HEAL_INTERVAL := 0.5
 @export var BUBBLE_SPEED_MULTIPLIER := 1.4  # bem mais rapida que o original (0.3): voa como quiser
@@ -368,13 +367,13 @@ var _puddle_indicator_node: Node3D
 var is_water_linked := false
 var water_link_target: Player = null
 var water_link_timer := 0.0
-var _water_link_rise := 0.0  # altura ja acumulada pela subida lenta do link
 var _water_link_heal_timer := 0.0
 # Espaço que ativou o link/bolha não pode valer como "subir": sem isso, pular e segurar
 # espaço deixava o jogador flutuando pra cima assim que a bolha aparecia.
 var _water_space_needs_release := false
 var is_water_bubble := false
 var _puddle_speed_bonus := 1.0  # multiplicador enquanto está em cima de uma poça de água
+var _puddle_sources := 0  # quantas poças o player está pisando ao mesmo tempo
 
 # Air abilities
 var air_dash_stacks := AIR_DASH_MAX_STACKS
@@ -1668,9 +1667,19 @@ func _apply_damage_effects(amount: int, element: int) -> void:
 # Habilidades de água curam players em vez de causar dano neles (ver water_pellet,
 # jet_stream, puddle_punch, water_bomb, rain_zone). Nos inimigos elas continuam
 # causando dano normal.
-# Chamado pela WaterPuddle ao entrar/sair dela (1.0 = sem bônus).
-func set_puddle_speed_bonus(multiplier: float) -> void:
-	_puddle_speed_bonus = maxf(multiplier, 1.0)
+# Chamado pela WaterPuddle ao entrar/sair dela. Vai por RPC porque quem detecta a
+# sobreposição é a autoridade da poça (o servidor), mas quem calcula o movimento é a
+# máquina do próprio jogador — sem isso o bônus era setado na cópia errada e não valia
+# pros aliados. O contador cobre estar em cima de várias poças ao mesmo tempo.
+@rpc("any_peer", "call_local")
+func set_puddle_bonus(active: bool, multiplier: float) -> void:
+	if active:
+		_puddle_sources += 1
+		_puddle_speed_bonus = maxf(multiplier, 1.0)
+	else:
+		_puddle_sources = maxi(_puddle_sources - 1, 0)
+		if _puddle_sources == 0:
+			_puddle_speed_bonus = 1.0
 
 
 func heal(amount: int) -> void:
@@ -2095,7 +2104,6 @@ func _start_water_link(ally: Player) -> void:
 	is_water_linked = true
 	water_link_target = ally
 	water_link_timer = 0.0
-	_water_link_rise = 0.0
 	_water_link_heal_timer = 0.0
 	_water_space_needs_release = true
 	velocity = Vector3.ZERO
@@ -2118,9 +2126,9 @@ func _update_water_link(delta: float) -> void:
 	water_link_timer += delta
 	velocity = Vector3.ZERO
 
-	# Sobe devagar enquanto grudado, parecendo uma bolha subindo
-	_water_link_rise = minf(_water_link_rise + AQUA_LINK_RISE_SPEED * delta, AQUA_LINK_MAX_RISE)
-	var target_pos = water_link_target.global_position + Vector3(0, 1.6 + _water_link_rise, 0)
+	# Grudado num aliado NÃO flutua pra cima (quem levita é só a bolha do link solo):
+	# fica na altura fixa em cima dele.
+	var target_pos = water_link_target.global_position + Vector3(0, AQUA_LINK_HEIGHT, 0)
 	global_position = global_position.lerp(target_pos, clamp(AQUA_LINK_FOLLOW_LERP * delta, 0.0, 1.0))
 
 	# Cura contínua enquanto o link está ativo: cura o aliado grudado e quem grudou.

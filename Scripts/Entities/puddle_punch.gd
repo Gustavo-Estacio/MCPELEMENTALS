@@ -3,8 +3,8 @@ extends Node3D
 class_name PuddlePunch
 
 @export var TELEGRAPH_DELAY := 0.8  # tempo com a poça no chão antes do soco sair
-@export var RADIUS := 2.5  # bem maior que o original (1.0), a pedido
-@export var DISC_THICKNESS := 0.6  # espessura do disco ao longo da normal
+@export var RADIUS := 10.0  # 4x o anterior (2.5)
+@export var DISC_THICKNESS := 2.4  # 4x o anterior (0.6): alcance bem maior pra CIMA
 @export var PUSH_FORCE := 14.0
 @export var DAMAGE := 15
 @export var HEAL := 45  # em player, agua cura em vez de machucar (3x)

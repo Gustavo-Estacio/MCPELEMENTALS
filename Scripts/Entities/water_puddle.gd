@@ -2,8 +2,12 @@ extends Area3D
 
 class_name WaterPuddle
 
-## Poça deixada pelo Water Dash: sempre no chão (Global._project_to_ground). Quem pisa
-## nela corre mais rápido e vai se curando aos poucos.
+## Poça deixada pelo Water Dash: sempre no chão (Global._project_to_ground). Qualquer
+## aliado que pisa nela corre mais rápido e vai se curando aos poucos.
+##
+## Quem decide é a AUTORIDADE da poça (o servidor, que foi quem a spawnou): ela avisa o
+## dono de cada player por RPC, porque movimento e vida são calculados na máquina do
+## próprio jogador.
 
 var element: int = ElementsEnum.Element.WATER
 var tag: String = "decal"
@@ -34,32 +38,35 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	# A poça pode sumir com alguém em cima: tira o buff de todo mundo antes de morrer.
+	if not is_multiplayer_authority():
+		return
 	for player in _players_inside:
-		if is_instance_valid(player) and player.has_method("set_puddle_speed_bonus"):
-			player.set_puddle_speed_bonus(1.0)
+		if is_instance_valid(player):
+			player.set_puddle_bonus.rpc(false, SPEED_MULTIPLIER)
 	_players_inside.clear()
 
 
 func _on_body_entered(body: Node3D) -> void:
+	if not is_multiplayer_authority():
+		return
 	if not body.is_in_group('Players') or _players_inside.has(body):
 		return
 
 	_players_inside.append(body)
-	if body.has_method("set_puddle_speed_bonus"):
-		body.set_puddle_speed_bonus(SPEED_MULTIPLIER)
+	body.set_puddle_bonus.rpc(true, SPEED_MULTIPLIER)
 
 
 func _on_body_exited(body: Node3D) -> void:
-	if not _players_inside.has(body):
+	if not is_multiplayer_authority() or not _players_inside.has(body):
 		return
 
 	_players_inside.erase(body)
-	if is_instance_valid(body) and body.has_method("set_puddle_speed_bonus"):
-		body.set_puddle_speed_bonus(1.0)
+	if is_instance_valid(body):
+		body.set_puddle_bonus.rpc(false, SPEED_MULTIPLIER)
 
 
 func _process(delta: float) -> void:
-	if _players_inside.is_empty():
+	if not is_multiplayer_authority() or _players_inside.is_empty():
 		return
 
 	_heal_timer += delta
