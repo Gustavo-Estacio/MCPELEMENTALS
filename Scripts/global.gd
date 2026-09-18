@@ -59,10 +59,12 @@ func spawn_damage_number(pos: Vector3, amount: int, tint: Color = DAMAGE_NUMBER_
 		return
 
 	var number = DAMAGE_NUMBER.instantiate()
-	number.global_position = pos
 	number.amount = amount
 	number.tint = tint
+	# add_child ANTES de mexer em global_position: fora da árvore, get_global_transform()
+	# falha com "!is_inside_tree()" (mesma ordem usada por todo outro spawn nesse arquivo).
 	spawn_container.add_child(number, true)
+	number.global_position = pos
 
 
 @rpc("any_peer", "call_local")

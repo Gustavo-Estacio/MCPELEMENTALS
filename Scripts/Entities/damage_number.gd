@@ -28,6 +28,7 @@ var _elapsed := 0.0
 var _start_pos: Vector3
 var _drift_x: float
 var _drift_z: float
+var _pos_captured := false  # ver _process: não dá pra confiar em position já em _ready()
 
 
 func _ready() -> void:
@@ -41,7 +42,6 @@ func _ready() -> void:
 	modulate = tint
 	_refresh_text()
 
-	_start_pos = position
 	_drift_x = randf_range(-HORIZONTAL_DRIFT, HORIZONTAL_DRIFT)
 	_drift_z = randf_range(-HORIZONTAL_DRIFT, HORIZONTAL_DRIFT)
 
@@ -52,6 +52,15 @@ func _refresh_text() -> void:
 
 
 func _process(delta: float) -> void:
+	if not _pos_captured:
+		# Quem spawna (Global.spawn_damage_number) só pode setar global_position DEPOIS
+		# do add_child — fora da árvore, get_global_transform() falha. Isso significa que
+		# em _ready() a posição ainda não é a final; espera o primeiro frame de verdade
+		# pra capturar o ponto de partida da subida.
+		_pos_captured = true
+		_start_pos = position
+		return
+
 	_elapsed += delta
 	var t: float = clampf(_elapsed / LIFETIME, 0.0, 1.0)
 	var eased_up: float = 1.0 - pow(1.0 - t, 2)  # ease-out: sobe rápido, desacelera no topo
