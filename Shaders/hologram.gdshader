@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded, blend_add, cull_disabled, depth_test_disabled;
+render_mode unshaded, blend_add, cull_disabled;
 
 uniform sampler2D depth_texture : hint_depth_texture;
 uniform vec3 primary_color : source_color = vec3(1.0, 0.0, 0.0);
