@@ -53,6 +53,7 @@ var health := max_health
 @export var ROLL_ANIM_SPEED_MULTIPLIER := 1.0  # o mini pulinho antes do Boulder Dash é curto, o Roll precisa tocar mais rápido pra caber
 @export var DECAL_BASE_RADIUS := 0.3  # raio base do CylinderMesh do RockDecal
 @export var LANDING_SHADOW_MAX_DISTANCE := 40.0  # alcance do raycast da sombra de pouso
+@export var AIM_RAY_DISTANCE := 100.0  # alcance do raycast de mira (reticle -> ponto mirado)
 @export var BOULDER_CRUSH_DAMAGE := 300  # dano nos inimigos atropelados pelo Boulder Dash (uma vez cada, por dash)
 @export var BOULDER_CRUSH_EXTRA_REACH := 0.8  # folga além do raio da bola pra contar como atropelado
 @export var BOULDER_CRUSH_KNOCKBACK := 16.0  # empurrão em quem é atropelado
@@ -1674,7 +1675,26 @@ func _play_animation(anim_name: String) -> void:
 
 
 func get_forward_direction() -> Vector3:
-	return -camera_3d.global_transform.basis.z
+	# Câmera fica deslocada do player (ombro/atrás), então mirar com a direção pura da
+	# câmera dispara tiros PARALELOS ao reticle, nunca cruzando o que ele mostra na tela.
+	# Faz raycast pelo centro da tela (onde o reticle fica) pra achar o ponto mirado, e
+	# aponta o tiro do player até LÁ — assim a trajetória converge no alvo certo.
+	var aim_point = _get_aim_point()
+	var to_target = aim_point - global_position
+	return to_target.normalized() if to_target.length() > 0.001 else -camera_3d.global_transform.basis.z
+
+
+func _get_aim_point() -> Vector3:
+	var from = camera_3d.global_position
+	var dir = -camera_3d.global_transform.basis.z
+	var to = from + dir * AIM_RAY_DISTANCE
+
+	var space_state = get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.exclude = [get_rid()]
+	var result = space_state.intersect_ray(query)
+
+	return result.position if result else to
 
 
 func take_damage(amount = 0, source_peer_id: int = -1, element: int = -1) -> void:
